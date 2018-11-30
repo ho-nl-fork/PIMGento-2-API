@@ -205,17 +205,37 @@ class Product extends Import
 
         /** @var array $product */
         $product = reset($products); // Grabs the first item of array.
-        // Creating table used for additional configurable processing.
+
+        // Create the table used for additional configurable processing.
         // Table name: tmp_pimgento_entities_configurable
-        $this->entitiesHelper->createTmpTableFromApi($product, $this->configurableTmpTableSuffix);
-        // Creating table used for final product import.
-        // Table name: tmp_pimgento_entities_product
         $this->entitiesHelper->createTmpTableFromApi($product, $this->getCode());
+
+        // Create the table used for final product import.
+        // Table name: tmp_pimgento_entities_product.
+        $this->entitiesHelper->createTmpTable([], $this->configurableTmpTableSuffix);
+        $connection = $this->entitiesHelper->getConnection();
+        $productTmpTable = $this->entitiesHelper->getTableName($this->getCode());
+        $configurableTmpTable = $this->entitiesHelper->getTableName($this->configurableTmpTableSuffix);
+        $connection->addColumn($configurableTmpTable, 'identifier', [
+            // This column holds info as to whether a product is "simple" or "configurable"
+            'type' => 'text',
+            'length' => 255,
+            'default' => '',
+            'COMMENT' => ' ',
+            'nullable' => false
+        ]);
+        $additionalColNames = ['family', 'categories'];
+        foreach ($additionalColNames as $colName) {
+            if ($connection->tableColumnExists($productTmpTable, $colName)) {
+                $connection->addColumn($configurableTmpTable, $colName, 'text');
+            }
+        }
+        // Note that the tmp_pimgento_entities_configurable table will also have an entity_id column,
+        // created automatically by the EntitiesHelper and whose value will remain null.
     }
 
     /**
-     * Insert data into temporary tables:
-     * Get all products from the Akeneo API and store them inside the table created ad hoc.
+     * Insert data into "final" temporary table.
      *
      * @return void
      */
@@ -256,10 +276,10 @@ class Product extends Import
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
 
-        $tmpTables = [
-            $this->entitiesHelper->getTableName($this->getCode()),
-            $this->entitiesHelper->getTableName($this->configurableTmpTableSuffix)
-        ];
+        $productTmpTable = $this->entitiesHelper->getTableName($this->getCode());
+        $configurableTmpTable = $this->entitiesHelper->getTableName($this->configurableTmpTableSuffix);
+
+        $tmpTables = [$productTmpTable, $configurableTmpTable];
 
         foreach ($tmpTables as $tmpTable) {
             $connection->addColumn($tmpTable, '_type_id', [
@@ -318,9 +338,10 @@ class Product extends Import
             if ($connection->tableColumnExists($tmpTable, 'enabled')) {
                 $connection->update($tmpTable, ['_status' => new Expr('IF(`enabled` <> 1, 2, 1)')]);
             }
-            /** @var string|null $groupColumn */// The 2 columns upon which is based the decision to make the product "simple" or "configurable"
-            // are "parent" and "group". "parent" has precedence over "group".
+            /** @var string|null $groupColumn */
             $groupColumn = null;
+            // The 2 columns upon which is based the decision to make the product "simple" or "configurable"
+            // are "parent" and "group". "parent" has precedence over "group".
             if ($connection->tableColumnExists($tmpTable, 'parent')) {
                 $groupColumn = 'parent';
             }
@@ -350,6 +371,7 @@ class Product extends Import
                     ]
                 );
             }
+
             // Map PIM attributes to Magento attributes.
 
             /** @var string|array $matches */
@@ -432,24 +454,18 @@ class Product extends Import
         foreach ($tmpTables as $tmpTable) {
             // The _children column will hold a list referencing all children of the configurable.
             $connection->addColumn($tmpTable, '_children', 'text');
-            // The _axis column will hold a list of references to eav_attribute.attribute_id's.
-            $connection->addColumn($tmpTable, '_axis', [
-                'type' => 'text',
-                'length' => 255,
-                'default' => '',
-                'COMMENT' => ' '
-            ]);
         }
+        $connection->addColumn($productTmpTable, '_axis', [
+            'type' => 'text',
+            'length' => 255,
+            'default' => '',
+            'COMMENT' => ' '
+        ]);
 
         /** @var array $data */
         $data = [
             'identifier'         => 'e.' . $groupColumn,
-            'url_key'            => 'e.' . $groupColumn,
-            '_children'          => new Expr('GROUP_CONCAT(e.identifier SEPARATOR ",")'),
-            '_type_id'           => new Expr('"configurable"'),
-            '_options_container' => new Expr('"container1"'),
-            '_status'            => 'e._status',
-            '_axis'              => 'v.axis',
+            '_children'          => new Expr('GROUP_CONCAT(e.identifier SEPARATOR ",")')
         ]; // $data keys = aliases in SQL query.
 
         if ($connection->tableColumnExists($productTmpTable, 'family')) {
@@ -551,10 +567,10 @@ class Product extends Import
         ];
 
         if ($connection->tableColumnExists($configurableTmpTable, 'family')) {
-            $data['family'] = 'e.family'; // Applicable to Cordon, e.g. "phone".
+            $data['family'] = 'e.family';
         }
         if ($connection->tableColumnExists($configurableTmpTable, 'categories')) {
-            $data['categories'] = 'e.categories'; // Applicable to Cordon, e.g. "all_econectik_pro, other_cat".
+            $data['categories'] = 'e.categories';
         }
 
         // TODO determine whether loop for $additional might be necessary / functional here.
@@ -563,8 +579,7 @@ class Product extends Import
         $configurable = $connection->select()
             ->from(['e' => $configurableTmpTable], $data)
             ->joinInner(['v' => $variantTable],'e.identifier = v.code', [])
-            ->where('e._type_id = "configurable"')
-            ->where('v.parent != ""')
+            ->where('v.parent <> ""')
             ->group('v.parent');
         // Write actual SQL query to system.log
         $this->logger->info($configurable->assemble());
@@ -581,10 +596,10 @@ class Product extends Import
             'identifier'         => 'e.identifier',
             'url_key'            => 'e.url_key',
             '_children'          => 'e._children',
-            '_type_id'           => 'e._type_id',
-            '_options_container' => 'e._options_container',
+            '_type_id'           => new Expr('"configurable"'),
+            '_options_container' => new Expr('"container1"'),
             '_status'            => 'e._status',
-            '_axis'              => 'e._axis',
+            '_axis'              => 'v.axis',
         ];
 
         if ($connection->tableColumnExists($configurableTmpTable, 'family')) {
@@ -599,7 +614,6 @@ class Product extends Import
         $configurable = $connection->select()
             ->from(['e' => $configurableTmpTable], $data)
             ->joinInner(['v' => $variantTable],'e.identifier = v.code', [])
-            ->where('e._type_id = "configurable"')
             ->where('v.parent = ""');
         // Write actual SQL query to system.log
         $this->logger->info($configurable->assemble());
@@ -2000,8 +2014,8 @@ class Product extends Import
      */
     public function dropTable()
     {
-        $this->entitiesHelper->dropTable($this->getCode());
-        $this->entitiesHelper->dropTable($this->configurableTmpTableSuffix);
+//        $this->entitiesHelper->dropTable($this->getCode());
+//        $this->entitiesHelper->dropTable($this->configurableTmpTableSuffix);
     }
 
     /**

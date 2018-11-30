@@ -117,7 +117,7 @@ class Entities extends AbstractHelper
      * @return $this
      * @throws \Zend_Db_Exception
      */
-    private function createTmpTable($fields, $tableSuffix)
+    public function createTmpTable($fields, $tableSuffix)
     {
         /* Delete table if exists */
         $this->dropTable($tableSuffix);
