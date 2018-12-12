@@ -137,10 +137,6 @@ class Product extends Import
      * @var Option $optionJob
      */
     protected $optionJob;
-    /**
-     * @var array $forkedAttributes
-     */
-    protected $attributeForks = [];
 
     /**
      * Product constructor.
@@ -288,60 +284,88 @@ class Product extends Import
         $tmpTables = [$productTmpTable, $configurableTmpTable];
         $connection = $this->entitiesHelper->getConnection();
 
-        $this->setAttributeForks();
+        // What attributes have been forked during the FamilyVariant import job?
 
-        // For each of the identified attributes, make a list of all options present in the table.
-        $forkedAttributes = [];
-        foreach ($this->attributeForks as $originalAttr => $forkedAttr) {
-            $attrValues = [];
-            $select = $connection->select()
-                ->from($productTmpTable, $originalAttr)
-                ->where($originalAttr . '!=""')
-                ->where($originalAttr . ' IS NOT NULL');
-        /** @var \Magento\Framework\DB\Statement\Pdo\Mysql $query */
-        $query = $connection->query($select);
-            while ($row = $query->fetch()) {
-                if (!in_array($row[$originalAttr], $attrValues, true)) {
-                    $attrValues[] = $row[$originalAttr];
+        $forkedCode = 'code' . FamilyVariant::FAMILY_FORK_SUFFIX;
+        /** @var AdapterInterface $connection */
+        $allAttributeForks = $connection->fetchPairs(
+            $connection->select()->from(
+                FamilyVariant::FORKED_ATTRIBUTE_TABLE_NAME,
+                ['code', $forkedCode]
+            )
+                ->where($forkedCode . ' IS NOT NULL')
+                ->where($forkedCode . ' <> ""')
+        );
+
+        if (count($allAttributeForks)) {
+
+            // Which of the forked attributes are present in the tmp table ?
+            // $attributeForks contains K=>V pairs like 'capacity' => 'capacity_fork'
+
+            $attributeForks = [];
+            foreach ($allAttributeForks as $originalAttr => $forkedAttr) {
+                if ($connection->tableColumnExists($productTmpTable, $originalAttr)) {
+                    $attributeForks[$originalAttr] = $forkedAttr;
                 }
             }
-            $forkedAttributes[$forkedAttr] = $attrValues;
-        }
-        $this->logger->info('==== $forkedAttributes ====');
-        $this->logger->info(print_r($forkedAttributes, true));
 
-        // Write the new options to a table and run a Option import job on it.
+            if (count($attributeForks)) {
 
-        $this->optionJob->createTable();
+                // For each of the identified attributes, make a list of all options present in the table.
+                // $forkedAttributes contains K=>V pairs like 'capacity' => [64, 128, 256]
 
-        foreach ($forkedAttributes as $attribute => $options) {
-            foreach ($options as $option) {
-                $data = [
-                    'code'             => $option,
-                    'attribute'        => $attribute,
-                    'labels-fr_FR'     => $option,
-                    'labels-en_US'     => $option,
-                ];
-                $connection->insertOnDuplicate(
-                    $this->entitiesHelper->getTableName($this->optionJob->getCode()),
-                    $data
-                );
+                $forkedAttributes = [];
+                foreach ($attributeForks as $originalAttr => $forkedAttr) {
+                    $attrValues = [];
+                    $select = $connection->select()
+                        ->from($productTmpTable, $originalAttr)
+                        ->where($originalAttr . '!=""')
+                        ->where($originalAttr . ' IS NOT NULL');
+                    /** @var \Magento\Framework\DB\Statement\Pdo\Mysql $query */
+                    $query = $connection->query($select);
+
+                    while ($row = $query->fetch()) {
+                        if (!in_array($row[$originalAttr], $attrValues, true)) {
+                            $attrValues[] = $row[$originalAttr];
+                        }
+                    }
+                    $forkedAttributes[$forkedAttr] = $attrValues;
+                }
+
+                // Write the new options to an Options tmp table and run an import job on it.
+
+                $this->optionJob->createTable();
+                foreach ($forkedAttributes as $attribute => $options) {
+
+                    foreach ($options as $option) {
+                        $data = [
+                            'code' => $option,
+                            'attribute' => $attribute,
+                            'labels-fr_FR' => $option,
+                            'labels-en_US' => $option,
+                        ];
+                        $connection->insertOnDuplicate(
+                            $this->entitiesHelper->getTableName($this->optionJob->getCode()),
+                            $data
+                        );
+                    }
+                }
+
+                $this->optionJob->matchEntities();
+                $this->optionJob->insertOptions();
+                $this->optionJob->insertValues();
+                $this->optionJob->dropTable();
+                $this->optionJob->cleanCache();
+
+                // Update the Products tmp table to rename columns that reference a forked attribute.
+
+                foreach ($attributeForks as $originalAttr => $forkedAttr) {
+                    $sql = 'ALTER TABLE '
+                        . $productTmpTable
+                        . ' CHANGE ' . $originalAttr . ' ' . $forkedAttr . ' text';
+                    $connection->query($sql);
+                }
             }
-        }
-
-        $this->optionJob->matchEntities();
-        $this->optionJob->insertOptions();
-        $this->optionJob->insertValues();
-        $this->optionJob->dropTable();
-        $this->optionJob->cleanCache();
-
-        // Update the product tmp so that, for each fork, the original name is replaced with the forked name.
-
-        foreach ($this->attributeForks as $originalAttr => $forkedAttr) {
-            $sql = 'ALTER TABLE '
-                . $productTmpTable
-                . ' CHANGE ' . $originalAttr . ' ' . $forkedAttr . ' text';
-            $connection->query($sql);
         }
 
         // Resume usual course of operations.
@@ -2118,35 +2142,4 @@ class Product extends Import
 
         $this->setMessage(__('Cache cleaned for: %1', join(', ', $types)));
     }
-
-    // TODO refactor directly into addRequiredData
-    private function setAttributeForks()
-    {
-        $productTmpTable = $this->entitiesHelper->getTableName($this->getCode());
-        $connection = $this->entitiesHelper->getConnection();
-
-        // What attributes have been forked during the FamilyVariant import job?
-
-        $forkedCode = 'code' . FamilyVariant::FAMILY_FORK_SUFFIX;
-        /** @var AdapterInterface $connection */
-        $allAttributeForks = $connection->fetchPairs(
-            $connection->select()->from(
-                FamilyVariant::FORKED_ATTRIBUTE_TABLE_NAME,
-                ['code', $forkedCode]
-            )
-                ->where($forkedCode . ' IS NOT NULL')
-                ->where($forkedCode . ' <> ""')
-        );
-        $this->logger->info('==== $allAttributeForks ====');
-        $this->logger->info(print_r($allAttributeForks, true));
-
-        // Which of the forked attributes are present in the tmp table ?
-
-        foreach ($allAttributeForks as $originalAttr => $forkedAttr) {
-            if ($connection->tableColumnExists($productTmpTable, $originalAttr)) {
-                $this->attributeForks[$originalAttr] = $forkedAttr;
-            }
-        }
-    }
-
 }
