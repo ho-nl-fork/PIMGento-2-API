@@ -95,6 +95,8 @@ class Option extends Import
      */
     protected $cacheTypeList;
 
+    protected $logger;
+
     /**
      * Option constructor
      *
@@ -108,6 +110,7 @@ class Option extends Import
      * @param TypeListInterface $cacheTypeList
      * @param StoreHelper       $storeHelper
      * @param EavSetup          $eavSetup
+     * @param \Psr\Log\LoggerInterface $logger
      * @param array             $data
      *
      * @throws LocalizedException
@@ -123,6 +126,7 @@ class Option extends Import
         TypeListInterface $cacheTypeList,
         StoreHelper $storeHelper,
         EavSetup $eavSetup,
+        \Psr\Log\LoggerInterface $logger,
         array $data = []
     ) {
         parent::__construct($outputHelper, $eventManager, $authenticator, $data);
@@ -134,6 +138,7 @@ class Option extends Import
         $this->cacheTypeList   = $cacheTypeList;
         $this->storeHelper     = $storeHelper;
         $this->eavSetup        = $eavSetup;
+        $this->logger          = $logger;
     }
 
     /**
@@ -147,6 +152,9 @@ class Option extends Import
         $attributes = $this->akeneoClient->getAttributeApi()->all();
         /** @var bool $hasOptions */
         $hasOptions = false;
+
+        // Does at least one of the attributes have options?
+
         /** @var array $attribute */
         foreach ($attributes as $attribute) {
             if ($attribute['type'] == 'pim_catalog_multiselect' || $attribute['type'] == 'pim_catalog_simpleselect') {
@@ -163,14 +171,19 @@ class Option extends Import
 
             return;
         }
+
+        // Get a sample and create the table.
+
         /** @var array $option */
         $option = $options->getItems();
+
         if (empty($option)) {
             $this->setMessage(__('No results from Akeneo'));
             $this->stop(1);
 
             return;
         }
+
         $option = reset($option);
         $this->entitiesHelper->createTmpTableFromApi($option, $this->getCode());
     }
@@ -201,16 +214,24 @@ class Option extends Import
 
     /**
      * Match code with entity
+     * The pimgento_entities table keeps track of PIM objects that are already mapped to magento entities,
+     * based on their code (e.g. "brand_MAR_ACE_ACER").
+     * It makes sure new rows found in tmp_pimgento_entities_option are identified as such and assigned
+     * an _entity_id (= pimgento_entities.entity_id) that is consistent with the sequence of the table into which they must ultimately be written
+     * (eav_attribute_option).
      *
      * @return void
      */
     public function matchEntities()
     {
+        // Insert new options to pimgento_entities table and prepare eav_attribute_option table for insertions.
+
         $this->entitiesHelper->matchEntity('code', 'eav_attribute_option', 'option_id', $this->getCode(), 'attribute');
     }
 
     /**
-     * Insert Option
+     * Insert Option into eav_attribute_option.
+     * This table references all options, tying each of them to a specific attribute, as listed in eav_attribute.
      *
      * @return void
      */
@@ -236,6 +257,14 @@ class Option extends Import
                     'attribute_id' => 'b.entity_id',
                 ]
             );
+        //SELECT
+        //   a._entity_id AS option_id,
+        //   a.sort_order,
+        //   b.entity_id AS attribute_id
+        //FROM tmp_pimgento_entities_option AS a
+        //INNER JOIN pimgento_entities AS b
+        //    ON a.attribute = b.code
+
         $connection->query(
             $connection->insertFromSelect(
                 $options,
@@ -247,7 +276,9 @@ class Option extends Import
     }
 
     /**
-     * Insert Values
+     * Insert Values into eav_attribute_option.
+     * This table provides "human-readable" values for each of the options listed
+     * in eav_attribute_option, while assigning them to a store.
      *
      * @return void
      */
@@ -282,6 +313,14 @@ class Option extends Import
                         'a.attribute = b.code AND b.import = "attribute"',
                         []
                     );
+                // SELECT
+                //    a._entity_id AS option_id,
+                //    <store_id> AS store_id, // e.g. 0, 1
+                //    a.labels-en_US AS value
+                //    FROM tmp_pimgento_entities_option AS a
+                // INNER JOIN pimgento_entities AS b
+                // ON a.attribute = b.code
+                // AND b.import = "attribute"
                 $connection->query(
                     $connection->insertFromSelect(
                         $options,
@@ -301,7 +340,7 @@ class Option extends Import
      */
     public function dropTable()
     {
-        $this->entitiesHelper->dropTable($this->getCode());
+//        $this->entitiesHelper->dropTable($this->getCode());
     }
 
     /**
