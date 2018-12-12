@@ -129,17 +129,17 @@ class Product extends Import
      * @var StoreHelper $storeHelper
      */
     protected $storeHelper;
-
-    /** @var string $configurableTmpTableSuffix */
+    /**
+     * @var string $configurableTmpTableSuffix
+     */
     protected $configurableTmpTableSuffix;
-
-    /** @var Option $optionJob */
+    /**
+     * @var Option $optionJob
+     */
     protected $optionJob;
-
-    /** @var LoggerInterface $logger */
-    protected $logger;
-
-    /** @var array $forkedAttributes */
+    /**
+     * @var array $forkedAttributes
+     */
     protected $attributeForks = [];
 
     /**
@@ -165,6 +165,7 @@ class Product extends Import
         OutputHelper $outputHelper,
         ManagerInterface $eventManager,
         Authenticator $authenticator,
+        \Psr\Log\LoggerInterface $logger,
         ProductImportHelper $entitiesHelper,
         ConfigHelper $configHelper,
         ProductFilters $productFilters,
@@ -175,10 +176,9 @@ class Product extends Import
         TypeListInterface $cacheTypeList,
         StoreHelper $storeHelper,
         Option $optionJob,
-        \Psr\Log\LoggerInterface $logger,
         array $data = []
     ) {
-        parent::__construct($outputHelper, $eventManager, $authenticator, $data);
+        parent::__construct($outputHelper, $eventManager, $authenticator, $logger, $data);
 
         $this->entitiesHelper          = $entitiesHelper;
         $this->configHelper            = $configHelper;
@@ -190,7 +190,6 @@ class Product extends Import
         $this->storeHelper             = $storeHelper;
         $this->productUrlPathGenerator = $productUrlPathGenerator;
         $this->optionJob               = $optionJob;
-        $this->logger                  = $logger;
         $this->configurableTmpTableSuffix = 'configurable';
     }
 
@@ -442,7 +441,7 @@ class Product extends Import
 
             /** @var string|array $matches */
             $matches = $this->scopeConfig->getValue(ConfigHelper::PRODUCT_ATTRIBUTE_MAPPING);
-            $matches = $this->serializer->unserialize($matches); // null in our case.
+            $matches = $this->serializer->unserialize($matches);
             // $matches is an array like [['pim_attribute' => value, 'magento_attribute' => value], ..]
             if (!is_array($matches)) {
                 return;
@@ -1035,12 +1034,11 @@ class Product extends Import
                     $values[$store['store_id']][$columnPrefix] = $column;
                 }
             }
+
             if (!isset($values[0][$columnPrefix])) {
                 $values[0][$columnPrefix] = $column;
             }
         }
-
-        // End result: for us, only $values[0]
 
         /** @var int $entityTypeId */
         $entityTypeId = $this->configHelper->getEntityTypeId(ProductModel::ENTITY);
@@ -2096,8 +2094,8 @@ class Product extends Import
      */
     public function dropTable()
     {
-//        $this->entitiesHelper->dropTable($this->getCode());
-//        $this->entitiesHelper->dropTable($this->configurableTmpTableSuffix);
+        $this->entitiesHelper->dropTable($this->getCode());
+        $this->entitiesHelper->dropTable($this->configurableTmpTableSuffix);
     }
 
     /**

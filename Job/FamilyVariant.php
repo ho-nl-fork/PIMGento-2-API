@@ -30,9 +30,6 @@ use Pimgento\Api\Helper\Output as OutputHelper;
  */
 class FamilyVariant extends Import
 {
-
-    //TODO Paul: remove unnecessary log traces.
-
     /**
      * @var int MAX_AXIS_NUMBER
      */
@@ -81,9 +78,9 @@ class FamilyVariant extends Import
      * @var Config $eavConfig
      */
     protected $eavConfig;
-
-    protected $logger;
-
+    /**
+     * @var Attribute $attributeJob
+     */
     protected $attributeJob;
 
 
@@ -107,19 +104,18 @@ class FamilyVariant extends Import
         OutputHelper $outputHelper,
         ManagerInterface $eventManager,
         Authenticator $authenticator,
+        \Psr\Log\LoggerInterface $logger,
         TypeListInterface $cacheTypeList,
         Config $eavConfig,
         Attribute $attributeJob,
-        \Psr\Log\LoggerInterface $logger,
         array $data = []
     ) {
-        parent::__construct($outputHelper, $eventManager, $authenticator, $data);
+        parent::__construct($outputHelper, $eventManager, $authenticator, $logger, $data);
 
         $this->configHelper   = $configHelper;
         $this->entitiesHelper = $entitiesHelper;
         $this->cacheTypeList  = $cacheTypeList;
         $this->eavConfig      = $eavConfig;
-        $this->logger         = $logger;
         $this->attributeJob   = $attributeJob;
     }
 
@@ -411,7 +407,7 @@ class FamilyVariant extends Import
      */
     public function dropTable()
     {
-//        $this->entitiesHelper->dropTable($this->getCode());
+        $this->entitiesHelper->dropTable($this->getCode());
     }
 
     /**

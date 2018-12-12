@@ -49,6 +49,34 @@ class ProductModel extends Import
      */
     protected $entitiesHelper;
     /**
+     * ProductModel constructor
+     *
+     * @param OutputHelper                        $outputHelper
+     * @param ManagerInterface                    $eventManager
+     * @param Authenticator                       $authenticator
+     * @param \Psr\Log\LoggerInterface            $logger
+     * @param \Pimgento\Api\Helper\Import\Product $entitiesHelper
+     * @param ConfigHelper                        $configHelper
+     * @param Config                              $eavConfig
+     * @param array                               $data
+     */
+    public function __construct(
+        OutputHelper $outputHelper,
+        ManagerInterface $eventManager,
+        Authenticator $authenticator,
+        \Psr\Log\LoggerInterface $logger,
+        \Pimgento\Api\Helper\Import\Product $entitiesHelper,
+        ConfigHelper $configHelper,
+        Config $eavConfig,
+        array $data = []
+    ) {
+        parent::__construct($outputHelper, $eventManager, $authenticator, $logger, $data);
+
+        $this->entitiesHelper  = $entitiesHelper;
+        $this->configHelper    = $configHelper;
+        $this->eavConfig       = $eavConfig;
+    }
+    /**
      * This variable contains a ConfigHelper
      *
      * @var ConfigHelper $configHelper
@@ -60,39 +88,6 @@ class ProductModel extends Import
      * @var Config $eavConfig
      */
     protected $eavConfig;
-
-    /** @var \Psr\Log\LoggerInterface $logger */
-    protected $logger;
-
-    /**
-     * ProductModel constructor
-     *
-     * @param OutputHelper                        $outputHelper
-     * @param ManagerInterface                    $eventManager
-     * @param Authenticator                       $authenticator
-     * @param \Pimgento\Api\Helper\Import\Product $entitiesHelper
-     * @param ConfigHelper                        $configHelper
-     * @param Config                              $eavConfig
-     * @param \Psr\Log\LoggerInterface            $logger
-     * @param array                               $data
-     */
-    public function __construct(
-        OutputHelper $outputHelper,
-        ManagerInterface $eventManager,
-        Authenticator $authenticator,
-        \Pimgento\Api\Helper\Import\Product $entitiesHelper,
-        ConfigHelper $configHelper,
-        Config $eavConfig,
-        \Psr\Log\LoggerInterface $logger,
-        array $data = []
-    ) {
-        parent::__construct($outputHelper, $eventManager, $authenticator, $data);
-
-        $this->entitiesHelper  = $entitiesHelper;
-        $this->configHelper    = $configHelper;
-        $this->eavConfig       = $eavConfig;
-        $this->logger          = $logger;
-    }
 
     /**
      * Create temporary table

@@ -95,14 +95,13 @@ class Option extends Import
      */
     protected $cacheTypeList;
 
-    protected $logger;
-
     /**
      * Option constructor
      *
      * @param OutputHelper      $outputHelper
      * @param ManagerInterface  $eventManager
      * @param Authenticator     $authenticator
+     * @param \Psr\Log\LoggerInterface $logger
      * @param EntitiesHelper    $entitiesHelper
      * @param ConfigHelper      $configHelper
      * @param Config            $eavConfig
@@ -110,7 +109,6 @@ class Option extends Import
      * @param TypeListInterface $cacheTypeList
      * @param StoreHelper       $storeHelper
      * @param EavSetup          $eavSetup
-     * @param \Psr\Log\LoggerInterface $logger
      * @param array             $data
      *
      * @throws LocalizedException
@@ -119,6 +117,7 @@ class Option extends Import
         OutputHelper $outputHelper,
         ManagerInterface $eventManager,
         Authenticator $authenticator,
+        \Psr\Log\LoggerInterface $logger,
         EntitiesHelper $entitiesHelper,
         ConfigHelper $configHelper,
         Config $eavConfig,
@@ -126,10 +125,9 @@ class Option extends Import
         TypeListInterface $cacheTypeList,
         StoreHelper $storeHelper,
         EavSetup $eavSetup,
-        \Psr\Log\LoggerInterface $logger,
         array $data = []
     ) {
-        parent::__construct($outputHelper, $eventManager, $authenticator, $data);
+        parent::__construct($outputHelper, $eventManager, $authenticator, $logger, $data);
 
         $this->entitiesHelper  = $entitiesHelper;
         $this->configHelper    = $configHelper;
@@ -138,7 +136,6 @@ class Option extends Import
         $this->cacheTypeList   = $cacheTypeList;
         $this->storeHelper     = $storeHelper;
         $this->eavSetup        = $eavSetup;
-        $this->logger          = $logger;
     }
 
     /**
@@ -176,14 +173,12 @@ class Option extends Import
 
         /** @var array $option */
         $option = $options->getItems();
-
         if (empty($option)) {
             $this->setMessage(__('No results from Akeneo'));
             $this->stop(1);
 
             return;
         }
-
         $option = reset($option);
         $this->entitiesHelper->createTmpTableFromApi($option, $this->getCode());
     }
@@ -257,13 +252,6 @@ class Option extends Import
                     'attribute_id' => 'b.entity_id',
                 ]
             );
-        //SELECT
-        //   a._entity_id AS option_id,
-        //   a.sort_order,
-        //   b.entity_id AS attribute_id
-        //FROM tmp_pimgento_entities_option AS a
-        //INNER JOIN pimgento_entities AS b
-        //    ON a.attribute = b.code
 
         $connection->query(
             $connection->insertFromSelect(
@@ -313,14 +301,6 @@ class Option extends Import
                         'a.attribute = b.code AND b.import = "attribute"',
                         []
                     );
-                // SELECT
-                //    a._entity_id AS option_id,
-                //    <store_id> AS store_id, // e.g. 0, 1
-                //    a.labels-en_US AS value
-                //    FROM tmp_pimgento_entities_option AS a
-                // INNER JOIN pimgento_entities AS b
-                // ON a.attribute = b.code
-                // AND b.import = "attribute"
                 $connection->query(
                     $connection->insertFromSelect(
                         $options,
@@ -340,7 +320,7 @@ class Option extends Import
      */
     public function dropTable()
     {
-//        $this->entitiesHelper->dropTable($this->getCode());
+        $this->entitiesHelper->dropTable($this->getCode());
     }
 
     /**

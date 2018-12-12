@@ -81,6 +81,7 @@ class Family extends Import
      * @param OutputHelper $outputHelper
      * @param ManagerInterface $eventManager
      * @param Authenticator $authenticator
+     * @param \Psr\Log\LoggerInterface $logger
      * @param SetFactory $attributeSetFactory
      * @param TypeListInterface $cacheTypeList
      * @param Config $eavConfig
@@ -92,12 +93,14 @@ class Family extends Import
         OutputHelper $outputHelper,
         ManagerInterface $eventManager,
         Authenticator $authenticator,
+        \Psr\Log\LoggerInterface $logger,
         SetFactory $attributeSetFactory,
         TypeListInterface $cacheTypeList,
         Config $eavConfig,
+
         array $data = []
     ) {
-        parent::__construct($outputHelper, $eventManager, $authenticator, $data);
+        parent::__construct($outputHelper, $eventManager, $authenticator, $logger, $data);
 
         $this->configHelper        = $configHelper;
         $this->entitiesHelper      = $entitiesHelper;
@@ -284,7 +287,7 @@ class Family extends Import
      */
     public function dropTable()
     {
-//        $this->entitiesHelper->dropTable($this->getCode());
+        $this->entitiesHelper->dropTable($this->getCode());
     }
 
     /**

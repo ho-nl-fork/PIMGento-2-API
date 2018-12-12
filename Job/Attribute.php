@@ -88,16 +88,12 @@ class Attribute extends Import
     protected $eavSetup;
 
     /**
-     * @var \Psr\Log\LoggerInterface $logger
-     */
-    protected $logger;
-
-    /**
      * Attribute constructor
      *
      * @param OutputHelper $outputHelper
      * @param ManagerInterface $eventManager
      * @param Authenticator $authenticator
+     * @param \Psr\Log\LoggerInterface $logger
      * @param EntitiesHelper $entitiesHelper
      * @param ConfigHelper $configHelper
      * @param Config $eavConfig
@@ -105,13 +101,13 @@ class Attribute extends Import
      * @param TypeListInterface $cacheTypeList
      * @param StoreHelper $storeHelper
      * @param EavSetup $eavSetup
-     * @param \Psr\Log\LoggerInterface $logger
      * @param array $data
      */
     public function __construct(
         OutputHelper $outputHelper,
         ManagerInterface $eventManager,
         Authenticator $authenticator,
+        \Psr\Log\LoggerInterface $logger,
         EntitiesHelper $entitiesHelper,
         ConfigHelper $configHelper,
         Config $eavConfig,
@@ -119,10 +115,9 @@ class Attribute extends Import
         TypeListInterface $cacheTypeList,
         StoreHelper $storeHelper,
         EavSetup $eavSetup,
-        \Psr\Log\LoggerInterface $logger,
         array $data = []
     ) {
-        parent::__construct($outputHelper, $eventManager, $authenticator, $data);
+        parent::__construct($outputHelper, $eventManager, $authenticator, $logger, $data);
 
         $this->entitiesHelper  = $entitiesHelper;
         $this->configHelper    = $configHelper;
@@ -567,7 +562,7 @@ class Attribute extends Import
      */
     public function dropTable()
     {
-//        $this->entitiesHelper->dropTable($this->getCode());
+        $this->entitiesHelper->dropTable($this->getCode());
     }
 
     /**

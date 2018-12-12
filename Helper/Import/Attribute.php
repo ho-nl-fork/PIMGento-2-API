@@ -181,12 +181,8 @@ class Attribute extends AbstractHelper
 
         /** @var DataObject $response */
         $response = new DataObject();
-        // Apparently this is not best practice, it would be better to inject a DataObjectFactory via the constructor.
         $response->setData('types', $types);
         $response->setTypes($types);
-        // Apparently this is the same as doing $response->setData('types', $types).
-        // The method is generated automatically, via the _underscore() method.
-
 
         $this->_eventManager->dispatch(
             'pimgento_attribute_get_configuration_add_before',
