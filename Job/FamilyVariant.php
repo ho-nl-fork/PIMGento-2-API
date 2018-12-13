@@ -228,24 +228,24 @@ class FamilyVariant extends Import
             $connection->update($tmpTable, ['_axis_codes' => new Expr($update)]);
         }
 
-        // Make an array of all _axis_codes present in the tmp table, without duplicates.
+        // Make an array of all _axis_codes present in the Family Variant tmp table, without duplicates.
 
-        /** @var array $axisCodes */
-        $allAxisCodes = [];
         /** @var \Zend_Db_Statement_Interface $variantFamily */
         $variantFamily = $connection->query(
             $connection->select()->from($tmpTable)
         );
+        /** @var string $allAxisCodesStr */
+        $allAxisCodesStr = '';
         while ($row = $variantFamily->fetch()) {
-            $axisCodes = explode(',', $row['_axis_codes']);
-            foreach ($axisCodes as $code) {
-                if (!in_array($code, $allAxisCodes, true)) {
-                    $allAxisCodes[] = $code;
-                }
-            }
+            $allAxisCodesStr .= $row['_axis_codes'];
         }
+        /** @var array $allAxisCodes */
+        $allAxisCodesTmp = explode(',', $allAxisCodesStr);
+        /** @var array $allAxisCodes */
+        $allAxisCodes = array_unique($allAxisCodesTmp);
 
-        // What are the attributes whose type is 'pim_catalog_metric'?
+        // Query Attribute API to get all attributes whose type is "metric".
+        // $metricAttributes contains K=>V pairs of the type ORIGINAL_ATTRIBUTE_CODE => ORIGINAL_ATTRIBUTE_AS_ARRAY
 
         $metricAttributes = [];
         $attributes = $this->akeneoClient->getAttributeApi()->all();
@@ -255,45 +255,39 @@ class FamilyVariant extends Import
             }
         }
 
-        // Do any of the axis codes present in the tmp table correspond to
-        // 'pim_catalog_metric' PIM attributes? If so, mark them as needing duplication.
+        // Are any of the attributes identified as metric present in the Family Variant tmp table?
+        // $metricAttributes contains K=>V pairs of the type ORIGINAL_ATTRIBUTE_CODE => FORKED_ATTRIBUTE_AS_ARRAY
 
-        $attributesToReplicate = [];
+        /** @var array $newAttributes */
+        $newAttributes = [];
         foreach ($allAxisCodes as $code) {
             if (array_key_exists($code, $metricAttributes)) {
-                $attributesToReplicate[] = $metricAttributes[$code];
+
+                // Assign those attributes a new code and type.
+
+                $newAttribute = $metricAttributes[$code];
+                $newAttribute['code'] = $code . self::FAMILY_FORK_SUFFIX;
+                $newAttribute['type'] = 'pim_catalog_simpleselect';
+                $newAttributes[$code] = $newAttribute;
             }
         }
 
-        // Alter those attributes so that:
-        // * they carry a different code;
-        // * they carry a more appropriate type.
-
-        $newAttributes = [];
-        foreach ($attributesToReplicate as $attribute) {
-            $attribute['code'] .= self::FAMILY_FORK_SUFFIX;
-            $attribute['type'] = 'pim_catalog_simpleselect';
-            $newAttributes[] = $attribute;
-        }
-
-        if (count($newAttributes) > 0) {
+        if (count($newAttributes)) {
 
             // Write those attributes to a new attribute tmp table
-            $this->entitiesHelper->createTmpTableFromApi($newAttributes[0], $this->attributeJob->getCode());
+            $this->entitiesHelper->createTmpTableFromApi(reset($newAttributes), $this->attributeJob->getCode());
             foreach ($newAttributes as $index => $attribute) {
                 $this->entitiesHelper->insertDataFromApi($attribute, $this->attributeJob->getCode());
             }
 
             // Process that table as an attribute job.
-            // TODO Paul: find a more elegant way of running Attribute steps.
             $this->attributeJob->matchEntities();
             $this->attributeJob->matchType();
             $this->attributeJob->matchFamily();
             $this->attributeJob->addAttributes();
             $this->attributeJob->dropTable();
 
-            // Add the codes of the new attributes to the _axis_codes or the tmp table,
-            // and remove the codes of the attributes that have been superseded.
+            // In the _axis_codes column of the tmp table, replace the codes of attributes that have been superseded.
             $variantFamily = $connection->query(
                 $connection->select()->from($tmpTable)
             );
@@ -314,22 +308,23 @@ class FamilyVariant extends Import
             // Persist the codes of the attributes that required duplication.
 
             $connection = $this->entitiesHelper->getConnection();
+
             // Drop table if it exists.
             $connection->resetDdlCache(self::FORKED_ATTRIBUTE_TABLE_NAME);
             $connection->dropTable(self::FORKED_ATTRIBUTE_TABLE_NAME);
+
             // Create table.
             $forkedAttributeTable = $connection->newTable(self::FORKED_ATTRIBUTE_TABLE_NAME)
                 ->addColumn('code', 'text')
                 ->addColumn('code' . self::FAMILY_FORK_SUFFIX, 'text');
             $connection->createTable($forkedAttributeTable);
             // Insert data.
-            $rowNb = count($attributesToReplicate);
-            for ($i = 0; $i < $rowNb; $i++) {
+            foreach ($newAttributes as $originalCode => $newAttribute) {
                 $connection->insertOnDuplicate(
                     $forkedAttributeTable->getName(),
                     [
-                        'code' => $attributesToReplicate[$i]['code'],
-                        'code' . self::FAMILY_FORK_SUFFIX => $newAttributes[$i]['code']
+                        'code'                              => $originalCode,
+                        'code' . self::FAMILY_FORK_SUFFIX   => $newAttribute['code']
                     ]);
             }
         }

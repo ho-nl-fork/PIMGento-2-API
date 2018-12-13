@@ -145,7 +145,7 @@ class ProductModel extends Import
         $connection = $this->entitiesHelper->getConnection();
         /** @var array $except */
         $except = ['code', 'axis'];
-        /** @var array $variantTable */
+        /** @var string $variantTable */
         $variantTable = $connection->getTableName('pimgento_product_model');
         /** @var array $columns */
         $columns = array_keys($connection->describeTable($variantTable));
