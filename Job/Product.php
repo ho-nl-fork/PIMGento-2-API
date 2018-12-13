@@ -129,10 +129,14 @@ class Product extends Import
      * @var StoreHelper $storeHelper
      */
     protected $storeHelper;
-
+    /**
+     * @var string $configurableTmpTableSuffix
+     */
     protected $configurableTmpTableSuffix;
-
-    protected $logger;
+    /**
+     * @var Option $optionJob
+     */
+    protected $optionJob;
 
     /**
      * Product constructor.
@@ -149,13 +153,15 @@ class Product extends Import
      * @param ProductUrlPathGenerator $productUrlPathGenerator
      * @param TypeListInterface $cacheTypeList
      * @param StoreHelper $storeHelper
-     * @param array $data
+     * @param Option $optionJob
      * @param LoggerInterface $logger
+     * @param array $data
      */
     public function __construct(
         OutputHelper $outputHelper,
         ManagerInterface $eventManager,
         Authenticator $authenticator,
+        \Psr\Log\LoggerInterface $logger,
         ProductImportHelper $entitiesHelper,
         ConfigHelper $configHelper,
         ProductFilters $productFilters,
@@ -165,10 +171,10 @@ class Product extends Import
         ProductUrlPathGenerator $productUrlPathGenerator,
         TypeListInterface $cacheTypeList,
         StoreHelper $storeHelper,
-        \Psr\Log\LoggerInterface $logger,
+        Option $optionJob,
         array $data = []
     ) {
-        parent::__construct($outputHelper, $eventManager, $authenticator, $data);
+        parent::__construct($outputHelper, $eventManager, $authenticator, $logger, $data);
 
         $this->entitiesHelper          = $entitiesHelper;
         $this->configHelper            = $configHelper;
@@ -179,7 +185,7 @@ class Product extends Import
         $this->cacheTypeList           = $cacheTypeList;
         $this->storeHelper             = $storeHelper;
         $this->productUrlPathGenerator = $productUrlPathGenerator;
-        $this->logger                  = $logger;
+        $this->optionJob               = $optionJob;
         $this->configurableTmpTableSuffix = 'configurable';
     }
 
@@ -213,9 +219,9 @@ class Product extends Import
         // Create the table used for final product import.
         // Table name: tmp_pimgento_entities_product.
         $this->entitiesHelper->createTmpTable([], $this->configurableTmpTableSuffix);
-        $connection = $this->entitiesHelper->getConnection();
         $productTmpTable = $this->entitiesHelper->getTableName($this->getCode());
         $configurableTmpTable = $this->entitiesHelper->getTableName($this->configurableTmpTableSuffix);
+        $connection = $this->entitiesHelper->getConnection();
         $connection->addColumn($configurableTmpTable, 'identifier', [
             // This column holds info as to whether a product is "simple" or "configurable"
             'type' => 'text',
@@ -273,13 +279,96 @@ class Product extends Import
      */
     public function addRequiredData()
     {
-        /** @var AdapterInterface $connection */
-        $connection = $this->entitiesHelper->getConnection();
-
         $productTmpTable = $this->entitiesHelper->getTableName($this->getCode());
         $configurableTmpTable = $this->entitiesHelper->getTableName($this->configurableTmpTableSuffix);
-
         $tmpTables = [$productTmpTable, $configurableTmpTable];
+        $connection = $this->entitiesHelper->getConnection();
+
+        // What attributes have been forked during the FamilyVariant import job?
+
+        $forkedCode = 'code' . FamilyVariant::FAMILY_FORK_SUFFIX;
+        /** @var AdapterInterface $connection */
+        $allAttributeForks = $connection->fetchPairs(
+            $connection->select()->from(
+                FamilyVariant::FORKED_ATTRIBUTE_TABLE_NAME,
+                ['code', $forkedCode]
+            )
+                ->where($forkedCode . ' IS NOT NULL')
+                ->where($forkedCode . ' <> ""')
+        );
+
+        if (count($allAttributeForks)) {
+
+            // Which of the forked attributes are present in the tmp table ?
+            // $attributeForks contains K=>V pairs like 'capacity' => 'capacity_fork'
+
+            $attributeForks = [];
+            foreach ($allAttributeForks as $originalAttr => $forkedAttr) {
+                if ($connection->tableColumnExists($productTmpTable, $originalAttr)) {
+                    $attributeForks[$originalAttr] = $forkedAttr;
+                }
+            }
+
+            if (count($attributeForks)) {
+
+                // For each of the identified attributes, make a list of all options present in the table.
+                // $forkedAttributes contains K=>V pairs like 'capacity' => [64, 128, 256]
+
+                $forkedAttributes = [];
+                foreach ($attributeForks as $originalAttr => $forkedAttr) {
+                    $attrValues = [];
+                    $select = $connection->select()
+                        ->from($productTmpTable, $originalAttr)
+                        ->where($originalAttr . '!=""')
+                        ->where($originalAttr . ' IS NOT NULL');
+                    /** @var \Magento\Framework\DB\Statement\Pdo\Mysql $query */
+                    $query = $connection->query($select);
+
+                    while ($row = $query->fetch()) {
+                        if (!in_array($row[$originalAttr], $attrValues, true)) {
+                            $attrValues[] = $row[$originalAttr];
+                        }
+                    }
+                    $forkedAttributes[$forkedAttr] = $attrValues;
+                }
+
+                // Write the new options to an Options tmp table and run an import job on it.
+
+                $this->optionJob->createTable();
+                foreach ($forkedAttributes as $attribute => $options) {
+
+                    foreach ($options as $option) {
+                        $data = [
+                            'code' => $option,
+                            'attribute' => $attribute,
+                            'labels-fr_FR' => $option,
+                            'labels-en_US' => $option,
+                        ];
+                        $connection->insertOnDuplicate(
+                            $this->entitiesHelper->getTableName($this->optionJob->getCode()),
+                            $data
+                        );
+                    }
+                }
+
+                $this->optionJob->matchEntities();
+                $this->optionJob->insertOptions();
+                $this->optionJob->insertValues();
+                $this->optionJob->dropTable();
+                $this->optionJob->cleanCache();
+
+                // Update the Products tmp table to rename columns that reference a forked attribute.
+
+                foreach ($attributeForks as $originalAttr => $forkedAttr) {
+                    $sql = 'ALTER TABLE '
+                        . $productTmpTable
+                        . ' CHANGE ' . $originalAttr . ' ' . $forkedAttr . ' text';
+                    $connection->query($sql);
+                }
+            }
+        }
+
+        // Resume usual course of operations.
 
         foreach ($tmpTables as $tmpTable) {
             $connection->addColumn($tmpTable, '_type_id', [
@@ -377,6 +466,7 @@ class Product extends Import
             /** @var string|array $matches */
             $matches = $this->scopeConfig->getValue(ConfigHelper::PRODUCT_ATTRIBUTE_MAPPING);
             $matches = $this->serializer->unserialize($matches);
+            // $matches is an array like [['pim_attribute' => value, 'magento_attribute' => value], ..]
             if (!is_array($matches)) {
                 return;
             }
@@ -407,6 +497,7 @@ class Product extends Import
                     );
                 }
             }
+
         }
     }
 
@@ -873,6 +964,7 @@ class Product extends Import
 
     /**
      * Set values to attributes
+     * Values are options applicable to a particular store.
      *
      * @return void
      * @throws LocalizedException
@@ -887,6 +979,8 @@ class Product extends Import
         $stores = $this->storeHelper->getAllStores();
         /** @var string[] $columns */
         $columns = array_keys($connection->describeTable($tmpTable));
+
+        // Excluding irrelevant columns from processing.
         /** @var string[] $except */
         $except = [
             '_entity_id',
@@ -906,6 +1000,11 @@ class Product extends Import
             'parent',
             'enabled',
         ];
+
+        // Beginning to map data for later db write.
+        // The first item is a generic description.
+        // The following items are store-specific.
+
         /** @var array $values */
         $values = [
             0 => [
@@ -933,9 +1032,14 @@ class Product extends Import
                 continue;
             }
 
+            // Some columns may be relevant only to particular stores.
+            // Those have names patterned like so: prefix-suffix, where the suffix is the store name.
+
             /** @var array|string $columnPrefix */
             $columnPrefix = explode('-', $column);
             $columnPrefix = reset($columnPrefix);
+
+            // For those columns, isolate the prefix and map it to the store in the values array.
 
             /**
              * @var string $suffix
@@ -2014,8 +2118,8 @@ class Product extends Import
      */
     public function dropTable()
     {
-//        $this->entitiesHelper->dropTable($this->getCode());
-//        $this->entitiesHelper->dropTable($this->configurableTmpTableSuffix);
+        $this->entitiesHelper->dropTable($this->getCode());
+        $this->entitiesHelper->dropTable($this->configurableTmpTableSuffix);
     }
 
     /**
@@ -2038,5 +2142,4 @@ class Product extends Import
 
         $this->setMessage(__('Cache cleaned for: %1', join(', ', $types)));
     }
-
 }

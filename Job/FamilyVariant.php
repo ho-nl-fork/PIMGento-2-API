@@ -35,6 +35,14 @@ class FamilyVariant extends Import
      */
     const MAX_AXIS_NUMBER = 5;
     /**
+     * @var string FAMILY_FORK_SUFFIX
+     */
+    const FAMILY_FORK_SUFFIX = '_fork';
+    /**
+     * @var string FORKED_ATTRIBUTE_TABLE_NAME
+     */
+    const FORKED_ATTRIBUTE_TABLE_NAME = 'pimgento_forked_attribute';
+    /**
      * This variable contains a string value
      *
      * @var string $code
@@ -70,6 +78,11 @@ class FamilyVariant extends Import
      * @var Config $eavConfig
      */
     protected $eavConfig;
+    /**
+     * @var Attribute $attributeJob
+     */
+    protected $attributeJob;
+
 
     /**
      * FamilyVariant constructor
@@ -81,6 +94,8 @@ class FamilyVariant extends Import
      * @param Authenticator       $authenticator
      * @param TypeListInterface   $cacheTypeList
      * @param Config              $eavConfig
+     * @param Attribute           $attributeJob
+     * @param  \Psr\Log\LoggerInterface $logger
      * @param array               $data
      */
     public function __construct(
@@ -89,16 +104,19 @@ class FamilyVariant extends Import
         OutputHelper $outputHelper,
         ManagerInterface $eventManager,
         Authenticator $authenticator,
+        \Psr\Log\LoggerInterface $logger,
         TypeListInterface $cacheTypeList,
         Config $eavConfig,
+        Attribute $attributeJob,
         array $data = []
     ) {
-        parent::__construct($outputHelper, $eventManager, $authenticator, $data);
+        parent::__construct($outputHelper, $eventManager, $authenticator, $logger, $data);
 
         $this->configHelper   = $configHelper;
         $this->entitiesHelper = $entitiesHelper;
         $this->cacheTypeList  = $cacheTypeList;
         $this->eavConfig      = $eavConfig;
+        $this->attributeJob   = $attributeJob;
     }
 
     /**
@@ -108,8 +126,9 @@ class FamilyVariant extends Import
      */
     public function createTable()
     {
+        $this->logger->info(get_class($this->attributeJob));
         /** @var PageInterface $families */
-        $families = $this->akeneoClient->getFamilyApi()->all();
+        $families = $this->akeneoClient->getFamilyApi()->all(); // Querying the Family API all over again.
         /** @var bool $hasVariant */
         $hasVariant = false;
         /** @var array $family */
@@ -129,7 +148,7 @@ class FamilyVariant extends Import
             return;
         }
         /** @var array $variantFamily */
-        $variantFamily = $variantFamilies->getItems();
+        $variantFamily = $variantFamilies->getItems(); // Grabbing the last item of $variantFamilies, as a sample.
         if (empty($variantFamily)) {
             $this->setMessage(__('No results retrieved from Akeneo'));
             $this->stop(1);
@@ -138,6 +157,7 @@ class FamilyVariant extends Import
         }
         $variantFamily = reset($variantFamily);
         $this->entitiesHelper->createTmpTableFromApi($variantFamily, $this->getCode());
+        // Created table: tmp_pimgento_entities_family_variant
     }
 
     /**
@@ -177,7 +197,10 @@ class FamilyVariant extends Import
         /** @var string $tmpTable */
         $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
 
-        $connection->addColumn($tmpTable, '_axis', [
+        // In tmp table, concatenate into a single _axis_code column
+        // the contents of all the variant-axes_X columns
+
+        $connection->addColumn($tmpTable, '_axis_codes', [
             'type' => 'text',
             'length' => 255,
             'default' => '',
@@ -202,26 +225,143 @@ class FamilyVariant extends Import
         if (!empty($columns)) {
             /** @var string $update */
             $update = 'TRIM(BOTH "," FROM CONCAT(COALESCE(`' . join('`, \'\' ), "," , COALESCE(`', $columns) . '`, \'\')))';
-            $connection->update($tmpTable, ['_axis' => new Expr($update)]);
+            $connection->update($tmpTable, ['_axis_codes' => new Expr($update)]);
         }
+
+        // Make an array of all _axis_codes present in the Family Variant tmp table, without duplicates.
+
         /** @var \Zend_Db_Statement_Interface $variantFamily */
         $variantFamily = $connection->query(
             $connection->select()->from($tmpTable)
         );
+        /** @var string $allAxisCodesStr */
+        $allAxisCodesStr = '';
+        while ($row = $variantFamily->fetch()) {
+            $allAxisCodesStr .= $row['_axis_codes'];
+        }
+        /** @var array $allAxisCodes */
+        $allAxisCodesTmp = explode(',', $allAxisCodesStr);
+        /** @var array $allAxisCodes */
+        $allAxisCodes = array_unique($allAxisCodesTmp);
+
+        // Query Attribute API to get all attributes whose type is "metric".
+        // $metricAttributes contains K=>V pairs of the type ORIGINAL_ATTRIBUTE_CODE => ORIGINAL_ATTRIBUTE_AS_ARRAY
+
+        $metricAttributes = [];
+        $attributes = $this->akeneoClient->getAttributeApi()->all();
+        foreach ($attributes as $attribute) {
+            if ($attribute['type'] === 'pim_catalog_metric') {
+                $metricAttributes[$attribute['code']] = $attribute;
+            }
+        }
+
+        // Are any of the attributes identified as metric present in the Family Variant tmp table?
+        // $metricAttributes contains K=>V pairs of the type ORIGINAL_ATTRIBUTE_CODE => FORKED_ATTRIBUTE_AS_ARRAY
+
+        /** @var array $newAttributes */
+        $newAttributes = [];
+        foreach ($allAxisCodes as $code) {
+            if (array_key_exists($code, $metricAttributes)) {
+
+                // Assign those attributes a new code and type.
+
+                $newAttribute = $metricAttributes[$code];
+                $newAttribute['code'] = $code . self::FAMILY_FORK_SUFFIX;
+                $newAttribute['type'] = 'pim_catalog_simpleselect';
+                $newAttributes[$code] = $newAttribute;
+            }
+        }
+
+        if (count($newAttributes)) {
+
+            // Write those attributes to a new attribute tmp table
+            $this->entitiesHelper->createTmpTableFromApi(reset($newAttributes), $this->attributeJob->getCode());
+            foreach ($newAttributes as $index => $attribute) {
+                $this->entitiesHelper->insertDataFromApi($attribute, $this->attributeJob->getCode());
+            }
+
+            // Process that table as an attribute job.
+            $this->attributeJob->matchEntities();
+            $this->attributeJob->matchType();
+            $this->attributeJob->matchFamily();
+            $this->attributeJob->addAttributes();
+            $this->attributeJob->dropTable();
+
+            // In the _axis_codes column of the tmp table, replace the codes of attributes that have been superseded.
+            $variantFamily = $connection->query(
+                $connection->select()->from($tmpTable)
+            );
+            while ($row = $variantFamily->fetch()) {
+                /** @var array $rowCodes */
+                $axisCodes = explode(',', $row['_axis_codes']);
+                $newAxisCodes = [];
+                foreach ($axisCodes as $code) {
+                    if (array_key_exists($code, $metricAttributes)) {
+                        $newAxisCodes[] = $code . self::FAMILY_FORK_SUFFIX;
+                    } else {
+                        $newAxisCodes[] = $code;
+                    }
+                }
+                $connection->update($tmpTable, ['_axis_codes' => join(',', $newAxisCodes)], ['code = ?' => $row['code']]);
+            }
+
+            // Persist the codes of the attributes that required duplication.
+
+            $connection = $this->entitiesHelper->getConnection();
+
+            // Drop table if it exists.
+            $connection->resetDdlCache(self::FORKED_ATTRIBUTE_TABLE_NAME);
+            $connection->dropTable(self::FORKED_ATTRIBUTE_TABLE_NAME);
+
+            // Create table.
+            $forkedAttributeTable = $connection->newTable(self::FORKED_ATTRIBUTE_TABLE_NAME)
+                ->addColumn('code', 'text')
+                ->addColumn('code' . self::FAMILY_FORK_SUFFIX, 'text');
+            $connection->createTable($forkedAttributeTable);
+            // Insert data.
+            foreach ($newAttributes as $originalCode => $newAttribute) {
+                $connection->insertOnDuplicate(
+                    $forkedAttributeTable->getName(),
+                    [
+                        'code'                              => $originalCode,
+                        'code' . self::FAMILY_FORK_SUFFIX   => $newAttribute['code']
+                    ]);
+            }
+        }
+
+        // In the tmp table, derive from the _axis_code column
+        // an _axis column where variations are identified by their id.
+
+        $connection->addColumn($tmpTable, '_axis', [
+            'type' => 'text',
+            'length' => 255,
+            'default' => '',
+            'COMMENT' => ' '
+        ]);
+
+        $select = $connection->select()->from(
+            $connection->getTableName('eav_attribute'),
+            ['attribute_code', 'attribute_id']
+        )->where('entity_type_id = ?', $this->getEntityTypeId());
+        // SELECT
+        //     eav_attribute.attribute_code,
+        //     eav_attribute.attribute_id
+        // FROM eav_attribute
+        // WHERE (entity_type_id = '4')
         /** @var array $attributes */
-        $attributes = $connection->fetchPairs(
-            $connection->select()->from(
-                $connection->getTableName('eav_attribute'),
-                ['attribute_code', 'attribute_id']
-            )->where('entity_type_id = ?', $this->getEntityTypeId())
+        $attributes = $connection->fetchPairs($select);
+
+        /** @var \Zend_Db_Statement_Interface $variantFamily */
+        $variantFamily = $connection->query(
+            $connection->select()->from($tmpTable)
         );
-        while (($row = $variantFamily->fetch())) {
-            /** @var array $axisAttributes */
-            $axisAttributes = explode(',', $row['_axis']);
+        while ($row = $variantFamily->fetch()) {
+            /** @var array $rowCodes */
+            $axisCodes = explode(',', $row['_axis_codes']);
             /** @var array $axis */
             $axis = [];
             /** @var string $code */
-            foreach ($axisAttributes as $code) {
+            foreach ($axisCodes as $code) {
                 if (isset($attributes[$code])) {
                     $axis[] = $attributes[$code];
                 }
@@ -233,6 +373,7 @@ class FamilyVariant extends Import
 
     /**
      * Update Product Model
+     * The pimgento_product_model table is enriched with variation axes.
      *
      * @return void
      */

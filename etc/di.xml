@@ -127,6 +127,7 @@
 
     <type name="Pimgento\Api\Job\FamilyVariant">
         <arguments>
+            <argument name="attributeJob" xsi:type="object">\Pimgento\Api\Job\Attribute</argument>
             <argument name="data" xsi:type="array">
                 <item name="steps" xsi:type="array">
                     <item name="1" xsi:type="array">
@@ -271,6 +272,9 @@
 
     <type name="Pimgento\Api\Job\Product">
         <arguments>
+            <argument name="optionJob" xsi:type="object">Pimgento\Api\Job\Option</argument>
+            <!--<argument name="productModelJob" xsi:type="object">Pimgento\Api\Job\ProductModel</argument>-->
+            <!--<argument name="familyVariantJob" xsi:type="object">Pimgento\Api\Job\FamilyVariant</argument>-->
             <argument name="data" xsi:type="array">
                 <item name="steps" xsi:type="array">
                     <item name="1" xsi:type="array">
