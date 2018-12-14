@@ -285,61 +285,65 @@ class Product extends Import
         $connection = $this->entitiesHelper->getConnection();
 
         // What attributes have been forked during the FamilyVariant import job?
+        // $attributeForks contains K=>V pairs
+        // like 'index'=>['code'=>'capacity', 'code_fork'=>'capacity_fork', 'unit'=>'GB']
 
-        $forkedCode = 'code' . FamilyVariant::FAMILY_FORK_SUFFIX;
-        /** @var AdapterInterface $connection */
-        $allAttributeForks = $connection->fetchPairs(
-            $connection->select()->from(
-                FamilyVariant::FORKED_ATTRIBUTE_TABLE_NAME,
-                ['code', $forkedCode]
-            )
-                ->where($forkedCode . ' IS NOT NULL')
-                ->where($forkedCode . ' <> ""')
-        );
+        /** @var Select $select */
+        $select = $connection->select()->from(
+            FamilyVariant::FORKED_ATTRIBUTE_TABLE_NAME,
+            [
+                'code' => 'code',
+                'code_fork' => 'code' . FamilyVariant::FAMILY_FORK_SUFFIX,
+                'unit' => 'code' . FamilyVariant::METRIC_UNIT_SUFFIX
+            ]
+        )   ->where('code' . FamilyVariant::FAMILY_FORK_SUFFIX . ' IS NOT NULL')
+            ->where('code' . FamilyVariant::FAMILY_FORK_SUFFIX . ' <> ""');
+        /** @var array $data */
+        $attributeForks = $connection->fetchAll($select);
 
-        if (count($allAttributeForks)) {
+        if (count($attributeForks)) {
 
             // Which of the forked attributes are present in the tmp table ?
             // $attributeForks contains K=>V pairs like 'capacity' => 'capacity_fork'
 
-            $attributeForks = [];
-            foreach ($allAttributeForks as $originalAttr => $forkedAttr) {
-                if ($connection->tableColumnExists($productTmpTable, $originalAttr)) {
-                    $attributeForks[$originalAttr] = $forkedAttr;
+            foreach ($attributeForks as $index => $attributeFork) {
+                if (!$connection->tableColumnExists($productTmpTable, $attributeFork['code'])) {
+                    unset($attributeForks[$index]);
                 }
             }
 
             if (count($attributeForks)) {
 
                 // For each of the identified attributes, make a list of all options present in the table.
-                // $forkedAttributes contains K=>V pairs like 'capacity' => [64, 128, 256]
+                // $forkedAttributeOptions contains K=>V pairs like 'capacity' => [64 GB, 128 GB, 256 GB].
 
-                $forkedAttributes = [];
-                foreach ($attributeForks as $originalAttr => $forkedAttr) {
-                    $attrValues = [];
+                $forkedAttributeOptions = [];
+                foreach ($attributeForks as $attributeFork) {
+
                     $select = $connection->select()
-                        ->from($productTmpTable, $originalAttr)
-                        ->where($originalAttr . '!=""')
-                        ->where($originalAttr . ' IS NOT NULL');
+                        ->from(
+                            $productTmpTable,
+                            $attributeFork['code'])
+                        ->where($attributeFork['code'] . '!=""')
+                        ->where($attributeFork['code'] . ' IS NOT NULL');
                     /** @var \Magento\Framework\DB\Statement\Pdo\Mysql $query */
                     $query = $connection->query($select);
 
+                    $optionValues = [];
                     while ($row = $query->fetch()) {
-                        if (!in_array($row[$originalAttr], $attrValues, true)) {
-                            $attrValues[] = $row[$originalAttr];
-                        }
+                        $optionValues[] = $row[$attributeFork['code']] . ' ' . $attributeFork['unit'];
                     }
-                    $forkedAttributes[$forkedAttr] = $attrValues;
+                    $forkedAttributeOptions[$attributeFork['code_fork']] = array_unique($optionValues);
                 }
 
                 // Write the new options to an Options tmp table and run an import job on it.
 
                 $this->optionJob->createTable();
-                foreach ($forkedAttributes as $attribute => $options) {
+                foreach ($forkedAttributeOptions as $attribute => $options) {
 
                     foreach ($options as $option) {
                         $data = [
-                            'code' => $option,
+                            'code' => explode(' ', $option)[0],
                             'attribute' => $attribute,
                             'labels-fr_FR' => $option,
                             'labels-en_US' => $option,
@@ -359,10 +363,10 @@ class Product extends Import
 
                 // Update the Products tmp table to rename columns that reference a forked attribute.
 
-                foreach ($attributeForks as $originalAttr => $forkedAttr) {
+                foreach ($attributeForks as $attributeFork) {
                     $sql = 'ALTER TABLE '
                         . $productTmpTable
-                        . ' CHANGE ' . $originalAttr . ' ' . $forkedAttr . ' text';
+                        . ' CHANGE ' . $attributeFork['code'] . ' ' . $attributeFork['code_fork'] . ' text';
                     $connection->query($sql);
                 }
             }
@@ -568,7 +572,6 @@ class Product extends Import
 
         /** @var string|array $additional */
         $additional = $this->scopeConfig->getValue(ConfigHelper::PRODUCT_CONFIGURABLE_ATTRIBUTES);
-        // TODO figure out what $additional contains.
         $additional = $this->serializer->unserialize($additional);
         if (!is_array($additional)) {
             $additional = [];
@@ -632,8 +635,6 @@ class Product extends Import
             ->joinInner(['v' => $variantTable],'e.' . $groupColumn . ' = v.code', [])
             ->where('e.' . $groupColumn.' <> ""')
             ->group('e.' . $groupColumn);
-        // Write actual SQL query to system.log
-        $this->logger->info($configurable->assemble());
 
         /** @var string $query */
         $query = $connection->insertFromSelect($configurable, $configurableTmpTable, array_keys($data));
@@ -672,8 +673,6 @@ class Product extends Import
             ->joinInner(['v' => $variantTable],'e.identifier = v.code', [])
             ->where('v.parent <> ""')
             ->group('v.parent');
-        // Write actual SQL query to system.log
-        $this->logger->info($configurable->assemble());
 
         /** @var string $query */
         $query = $connection->insertFromSelect($configurable, $productTmpTable, array_keys($data));
