@@ -286,89 +286,100 @@ class Product extends Import
 
         // What attributes have been forked during the FamilyVariant import job?
         // $attributeForks contains K=>V pairs
-        // like 'index'=>['code'=>'capacity', 'code_fork'=>'capacity_fork', 'unit'=>'GB']
+        // like FORKED_CODE => ['code_fork'=>FORKED_CODE, 'code_orig'=> ORIGINAL_CODE, 'unit'=>UNIT]
 
         /** @var Select $select */
         $select = $connection->select()->from(
             FamilyVariant::FORKED_ATTRIBUTE_TABLE_NAME,
             [
-                'code' => 'code',
                 'code_fork' => 'code' . FamilyVariant::FAMILY_FORK_SUFFIX,
+                'code_orig' => 'code',
                 'unit' => 'code' . FamilyVariant::METRIC_UNIT_SUFFIX
             ]
         )   ->where('code' . FamilyVariant::FAMILY_FORK_SUFFIX . ' IS NOT NULL')
             ->where('code' . FamilyVariant::FAMILY_FORK_SUFFIX . ' <> ""');
         /** @var array $data */
-        $attributeForks = $connection->fetchAll($select);
+        $attributeForks = $connection->fetchAssoc($select);
 
         if (count($attributeForks)) {
 
-            // Which of the forked attributes are present in the tmp table ?
-            // $attributeForks contains K=>V pairs like 'capacity' => 'capacity_fork'
+            // Keep only those forked attributes that are present in the Product tmp table.
 
-            foreach ($attributeForks as $index => $attributeFork) {
-                if (!$connection->tableColumnExists($productTmpTable, $attributeFork['code'])) {
-                    unset($attributeForks[$index]);
+            foreach ($attributeForks as $forkedCode => $attributeFork) {
+                if (!$connection->tableColumnExists($productTmpTable, $attributeFork['code_orig'])) {
+                    unset($attributeForks[$forkedCode]);
                 }
             }
 
-            if (count($attributeForks)) {
+            if (count($attributeForks)) { // $attributeForks might have been emptied.
 
-                // For each of the identified attributes, make a list of all options present in the table.
-                // $forkedAttributeOptions contains K=>V pairs like 'capacity' => [64 GB, 128 GB, 256 GB].
+                // Prepare to write the new options to an Options tmp table.
+                $this->optionJob->createTable();
 
-                $forkedAttributeOptions = [];
-                foreach ($attributeForks as $attributeFork) {
+                // Get the locales for which the options will need labels.
+                /** @var array $optionsTableColumns */
+                $optionsTableColumns = array_keys(
+                    $connection->describeTable(
+                        $this->entitiesHelper->getTableName($this->optionJob->getCode())
+                    )
+                );
+                /** @var array $localeSuffixes */
+                $localeSuffixes = [];
+                foreach ($optionsTableColumns as $title) {
+                    $parts = explode('-', $title);
+                    if ($parts[0] === 'labels') {
+                        $localeSuffixes[] = $parts[1];
+                    }
+                }
+
+                foreach ($attributeForks as $forkedCode => $attributeFork) {
+
+                    // On the Product tmp table front, rename columns that reference a forked attribute.
+
+                    $sql = 'ALTER TABLE '
+                        . $productTmpTable
+                        . ' CHANGE ' . $attributeFork['code_orig'] . ' ' . $forkedCode . ' text';
+                    $connection->query($sql);
+
+                    // On the Options front, make a list of all options present in the table.
 
                     $select = $connection->select()
-                        ->from(
-                            $productTmpTable,
-                            $attributeFork['code'])
-                        ->where($attributeFork['code'] . '!=""')
-                        ->where($attributeFork['code'] . ' IS NOT NULL');
+                        ->from($productTmpTable, $forkedCode)
+                        ->where($forkedCode . '!=""')
+                        ->where($forkedCode . ' IS NOT NULL');
                     /** @var \Magento\Framework\DB\Statement\Pdo\Mysql $query */
                     $query = $connection->query($select);
 
-                    $optionValues = [];
+                    $options = [];
                     while ($row = $query->fetch()) {
-                        $optionValues[] = $row[$attributeFork['code']] . ' ' . $attributeFork['unit'];
+                        $options[] = $row[$forkedCode];
                     }
-                    $forkedAttributeOptions[$attributeFork['code_fork']] = array_unique($optionValues);
-                }
-
-                // Write the new options to an Options tmp table and run an import job on it.
-
-                $this->optionJob->createTable();
-                foreach ($forkedAttributeOptions as $attribute => $options) {
+                    $options = array_unique($options);
 
                     foreach ($options as $option) {
                         $data = [
-                            'code' => explode(' ', $option)[0],
-                            'attribute' => $attribute,
-                            'labels-fr_FR' => $option,
-                            'labels-en_US' => $option,
+                            'code'          => $option,
+                            'attribute'     => $forkedCode,
                         ];
+                        // Add labels for each locale.
+                        foreach ($localeSuffixes as $localeSuffix) {
+                            $data['labels-' . $localeSuffix] = $option . ' ' . $attributeFork['unit'];
+                        }
+                        // Write data to the Options tmp table.
                         $connection->insertOnDuplicate(
                             $this->entitiesHelper->getTableName($this->optionJob->getCode()),
                             $data
                         );
                     }
+
                 }
 
+                // Complete the Options import job.
                 $this->optionJob->matchEntities();
                 $this->optionJob->insertOptions();
                 $this->optionJob->insertValues();
                 $this->optionJob->dropTable();
                 $this->optionJob->cleanCache();
-
-                // Update the Products tmp table to rename columns that reference a forked attribute.
-
-                foreach ($attributeForks as $attributeFork) {
-                    $sql = 'ALTER TABLE '
-                        . $productTmpTable
-                        . ' CHANGE ' . $attributeFork['code'] . ' ' . $attributeFork['code_fork'] . ' text';
-                    $connection->query($sql);
-                }
             }
         }
 
