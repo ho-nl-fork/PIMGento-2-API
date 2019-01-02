@@ -200,15 +200,8 @@ class Attribute extends Import
                 'entity_id' => 'attribute_id',
             ]
         )->where('entity_type_id = ?', $this->getEntityTypeId());
-        //SELECT
-        //    "attribute" AS import,
-        //    eav_attribute.attribute_code AS code,
-        //    eav_attribute.attribute_id AS entity_id
-        //FROM eav_attribute
-        //    WHERE (entity_type_id = '4');
-
-        // example code: capacity
         // entity_type_id=4 restricts results to attributes applicable to catalog products.
+
 
         $connection->query(
             $connection->insertFromSelect(
@@ -253,24 +246,14 @@ class Attribute extends Import
                 array_keys($columns)
             )
         );
-        //SELECT
-        //    tmp_pimgento_entities_attribute._entity_id,
-        //    tmp_pimgento_entities_attribute.type,
-        //    tmp_pimgento_entities_attribute.backend_type,
-        //    tmp_pimgento_entities_attribute.frontend_input,
-        //    tmp_pimgento_entities_attribute.backend_model,
-        //    tmp_pimgento_entities_attribute.source_model,
-        //    tmp_pimgento_entities_attribute.frontend_model
-        //FROM tmp_pimgento_entities_attribute;
+
+        //  $data contains K=>V pairs of _entity_id => whole_row
         /** @var array $data */
         $data = $connection->fetchAssoc($select);
         /**
          * @var int $id
          * @var array $attribute
          */
-        // for each row of tmp_pimgento_entities_attribute,
-        // $id contains the value of _entity_id,
-        // $attribute contains the whole row.
         foreach ($data as $id => $attribute) {
 
             // Look up how PIM types are to be mapped to magento types.
@@ -279,8 +262,6 @@ class Attribute extends Import
 
             /** @var array $type */
             $type = $this->attributeHelper->getType($attribute['type']);
-            $this->logger->info('==== matched type ====');
-            $this->logger->info(print_r($type, true));
             $connection->update($tmpTable, $type, ['_entity_id = ?' => $id]);
         }
     }
@@ -361,7 +342,7 @@ class Attribute extends Import
             // Each attribute's properties are determined by the fields in the eav_attribute table
             // plus the fields in catalog_eav_attribute.
             //
-            // Additionnally, attributes may have to be referenced in
+            // Additionally, attributes may have to be referenced in
             // eav_attribute_group and eav_entity_attribute
 
             /** @var string[] $values */
@@ -485,7 +466,6 @@ class Attribute extends Import
             );
 
             /* Add Attribute to group and family */
-            // Not applicable to us, since we don't seem to have an _attribute_set_id column in tmp_pimgento_entities_attribute.
             if ($row['_attribute_set_id'] && $row['group']) {
                 $attributeSetIds = explode(',', $row['_attribute_set_id']);
 
