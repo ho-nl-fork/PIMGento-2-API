@@ -212,32 +212,12 @@ class Product extends Import
         /** @var array $product */
         $product = reset($products); // Grabs the first item of array.
 
-        // Create the table used for additional configurable processing.
-        // Table name: tmp_pimgento_entities_configurable
-        $this->entitiesHelper->createTmpTableFromApi($product, $this->getCode());
-
         // Create the table used for final product import.
         // Table name: tmp_pimgento_entities_product.
-        $this->entitiesHelper->createTmpTable([], $this->configurableTmpTableSuffix);
-        $productTmpTable = $this->entitiesHelper->getTableName($this->getCode());
-        $configurableTmpTable = $this->entitiesHelper->getTableName($this->configurableTmpTableSuffix);
-        $connection = $this->entitiesHelper->getConnection();
-        // This column holds info as to whether a product is "simple" or "configurable"
-        $connection->addColumn($configurableTmpTable, 'identifier', [
-            'type' => 'text',
-            'length' => 255,
-            'default' => '',
-            'COMMENT' => ' ',
-            'nullable' => false
-        ]);
-        $additionalColNames = ['family', 'categories'];
-        foreach ($additionalColNames as $colName) {
-            if ($connection->tableColumnExists($productTmpTable, $colName)) {
-                $connection->addColumn($configurableTmpTable, $colName, 'text');
-            }
-        }
-        // Note that the tmp_pimgento_entities_configurable table will also have an entity_id column,
-        // created automatically by the EntitiesHelper and whose value will remain null.
+        $this->entitiesHelper->createTmpTableFromApi($product, $this->getCode());
+        // Create the table used for additional configurable processing.
+        // Table name: tmp_pimgento_entities_configurable
+        $this->entitiesHelper->createTmpTableFromApi($product, $this->configurableTmpTableSuffix);
     }
 
     /**
