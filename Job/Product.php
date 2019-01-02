@@ -222,8 +222,8 @@ class Product extends Import
         $productTmpTable = $this->entitiesHelper->getTableName($this->getCode());
         $configurableTmpTable = $this->entitiesHelper->getTableName($this->configurableTmpTableSuffix);
         $connection = $this->entitiesHelper->getConnection();
+        // This column holds info as to whether a product is "simple" or "configurable"
         $connection->addColumn($configurableTmpTable, 'identifier', [
-            // This column holds info as to whether a product is "simple" or "configurable"
             'type' => 'text',
             'length' => 255,
             'default' => '',
@@ -2128,8 +2128,8 @@ class Product extends Import
      */
     public function dropTable()
     {
-        $this->entitiesHelper->dropTable($this->getCode());
-        $this->entitiesHelper->dropTable($this->configurableTmpTableSuffix);
+//        $this->entitiesHelper->dropTable($this->getCode());
+//        $this->entitiesHelper->dropTable($this->configurableTmpTableSuffix);
     }
 
     /**
