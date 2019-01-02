@@ -479,7 +479,7 @@ class Product extends Import
             // Map PIM attributes to Magento attributes.
 
             /** @var string|array $matches */
-            $matches = $this->scopeConfig->getValue(ConfigHelper::PRODUCT_ATTRIBUTE_MAPPING);
+            $matches = $this->scopeConfig->getValue(ConfigHelper::PRODUCT_ATTRIBUTE_MAPPING_SIMPLE);
             $matches = $this->serializer->unserialize($matches);
             // $matches is an array like [['pim_attribute' => value, 'magento_attribute' => value], ..]
             if (!is_array($matches)) {

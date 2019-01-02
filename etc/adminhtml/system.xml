@@ -176,11 +176,17 @@ For example :<br/>
             </group>
             <group id="product" translate="label" type="text" sortOrder="40" showInDefault="1" showInWebsite="0" showInStore="0">
                 <label>Products</label>
-                <field id="attribute_mapping" translate="label" type="text" sortOrder="10" showInDefault="1" showInWebsite="0" showInStore="0">
-                    <label>Attribute Mapping</label>
+                <field id="attribute_mapping_simple" translate="label" type="text" sortOrder="10" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Simple Product Attribute Mapping</label>
                     <frontend_model>Pimgento\Api\Block\Adminhtml\System\Config\Form\Field\Attribute</frontend_model>
                     <backend_model>Magento\Config\Model\Config\Backend\Serialized\ArraySerialized</backend_model>
-                    <comment>Fill additional Magento attributes from Pim attributes</comment>
+                    <comment>For Simple Products, Fill additional Magento attributes from Pim attributes</comment>
+                </field>
+                <field id="attribute_mapping_configurable" translate="label" type="text" sortOrder="10" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Configurable Product Attribute Mapping</label>
+                    <frontend_model>Pimgento\Api\Block\Adminhtml\System\Config\Form\Field\Attribute</frontend_model>
+                    <backend_model>Magento\Config\Model\Config\Backend\Serialized\ArraySerialized</backend_model>
+                    <comment>For Configurable Products, fill additional Magento attributes from Pim attributes</comment>
                 </field>
                 <field id="tax_class" translate="label" type="text" sortOrder="20" showInDefault="1" showInWebsite="0" showInStore="0">
                     <label>Default Tax Class</label>
