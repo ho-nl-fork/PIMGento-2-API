@@ -264,6 +264,8 @@ class Product extends Import
         $tmpTables = [$productTmpTable, $configurableTmpTable];
         $connection = $this->entitiesHelper->getConnection();
 
+        // ** Insure metric attributes are imported ** //
+
         // What attributes have been forked during the FamilyVariant import job?
         // $attributeForks contains K=>V pairs
         // like FORKED_CODE => ['code_fork'=>FORKED_CODE, 'code_orig'=> ORIGINAL_CODE, 'unit'=>UNIT]
@@ -363,7 +365,7 @@ class Product extends Import
             }
         }
 
-        // Resume usual course of operations.
+        // ** Resume usual course of operations. **
 
         foreach ($tmpTables as $tmpTable) {
             $connection->addColumn($tmpTable, '_type_id', [
@@ -510,6 +512,7 @@ class Product extends Import
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
 
+        // ***** ROUND 1
         // The first round of configurable determination writes the immediate parents of simple products
         // to the intermediate tmp table, $configurableTmpTable (tmp_pimgento_entities_configurable).
 
@@ -548,11 +551,28 @@ class Product extends Import
             'COMMENT' => ' '
         ]);
 
+        /** @var array $stores */
+        $stores = $this->storeHelper->getAllStores();
+        /** @var string $variantTable */
+        $variantTable = $connection->getTableName('pimgento_product_model');
+
         /** @var array $data */
         $data = [
             'identifier'         => 'e.' . $groupColumn,
             '_children'          => new Expr('GROUP_CONCAT(e.identifier SEPARATOR ",")')
-        ]; // $data keys = aliases in SQL query.
+        ];
+
+        // Fetch all usable data from the variant table (pimgento_product_model)
+        // to inject it into the configurable tmp table.
+        $commonColumns = array_intersect(
+            array_keys($connection->describeTable($variantTable)),
+            array_keys($connection->describeTable($configurableTmpTable))
+        );
+        $this->logger->info('==== Common columns');
+        $this->logger->info(print_r($commonColumns, true));
+        foreach ($commonColumns as $column) {
+            $data[$column] = 'v.' . $column;
+        }
 
         if ($connection->tableColumnExists($productTmpTable, 'family')) {
             $data['family'] = 'e.family';
@@ -567,11 +587,6 @@ class Product extends Import
         if (!is_array($additional)) {
             $additional = [];
         }
-
-        /** @var array $stores */
-        $stores = $this->storeHelper->getAllStores();
-        /** @var string $variantTable */
-        $variantTable = $connection->getTableName('pimgento_product_model');
 
         /** @var array $attribute */
         foreach ($additional as $attribute) {
@@ -632,6 +647,7 @@ class Product extends Import
 
         $connection->query($query);
 
+        // // ***** ROUND 2
         // This second round of processing determines if the configurables now listed in
         // the intermediate temporary table (tmp_pimgento_entities_configurable) themselves have parents.
 
@@ -656,6 +672,27 @@ class Product extends Import
             $data['categories'] = 'e.categories';
         }
 
+        // Ensure extra data fetched from the variant table
+        // do not overwrite data that are already part of the select.
+
+        $extraVariantTableData = [];
+        foreach ($commonColumns as $column) {
+            if (!isset($data[$column])) $extraVariantTableData[$column] = $column;
+        }
+
+        // Which of these extra data are really relevant
+
+        $select = $connection->select()
+            ->from($variantTable, $extraVariantTableData)
+            ->where('parent IS NULL')
+            ->orWhere('parent=""')
+            ->limit(1);
+        $query = $connection->query($select);
+        $extraVariantTableData = $query->fetch();
+        foreach ($extraVariantTableData as $key => $value) {
+            if ($value !== null && $value !== '') $data[$key] = 'v.' . $key;
+        }
+
         // TODO determine whether loop for $additional might be necessary / functional here.
 
         /** @var Select $configurable */
@@ -664,6 +701,8 @@ class Product extends Import
             ->joinInner(['v' => $variantTable],'e.identifier = v.code', [])
             ->where('v.parent <> ""')
             ->group('v.parent');
+        $this->logger->info("==== L681 ====");
+        $this->logger->info($configurable->assemble());
 
         /** @var string $query */
         $query = $connection->insertFromSelect($configurable, $productTmpTable, array_keys($data));
@@ -696,8 +735,6 @@ class Product extends Import
             ->from(['e' => $configurableTmpTable], $data)
             ->joinInner(['v' => $variantTable],'e.identifier = v.code', [])
             ->where('v.parent = ""');
-        // Write actual SQL query to system.log
-        $this->logger->info($configurable->assemble());
 
         $query = $connection->insertFromSelect($configurable, $productTmpTable, array_keys($data));
 
