@@ -457,8 +457,17 @@ class Product extends Import
 
 
         }
+    }
 
-        // Map PIM attributes to Magento attributes for simple products.
+    /**
+     * Map PIM attributes to Magento attributes for simple products,
+     * i.e. copy columns of tmp_pimgento_entities_product, named after PIM attributes,
+     * to new columns named after magento attributes, as defined in the Pimgento-settings GUI.
+     */
+    public function mapAttributesForSimpleProducts()
+    {
+        /** @var string $productTmpTable */
+        $productTmpTable = $this->entitiesHelper->getTableName($this->getCode());
 
         /** @var string|array $matches */
         $matches = $this->scopeConfig->getValue(ConfigHelper::PRODUCT_ATTRIBUTE_MAPPING_SIMPLE);
@@ -468,8 +477,6 @@ class Product extends Import
         if (!is_array($matches)) {
             return;
         }
-        /** @var array $stores */
-        $stores = $this->storeHelper->getAllStores();
         /** @var array $match */
         foreach ($matches as $match) {
             if (!isset($match['pim_attribute'], $match['magento_attribute'])) {
@@ -480,17 +487,6 @@ class Product extends Import
             /** @var string $magentoAttribute */
             $magentoAttribute = $match['magento_attribute'];
             $this->entitiesHelper->copyColumn($productTmpTable, $pimAttribute, $magentoAttribute);
-            /**
-             * @var string $local
-             * @var string $affected
-             */
-            foreach ($stores as $local => $affected) {
-                $this->entitiesHelper->copyColumn(
-                    $productTmpTable,
-                    $pimAttribute . '-' . $local,
-                    $magentoAttribute . '-' . $local
-                );
-            }
         }
     }
 
@@ -506,7 +502,6 @@ class Product extends Import
         $productTmpTable = $this->entitiesHelper->getTableName($this->getCode());
         /** @var string $configurableTmpTable */
         $configurableTmpTable = $this->entitiesHelper->getTableName($this->configurableTmpTableSuffix);
-
 
         /** @var array $stores */
         $stores = $this->storeHelper->getAllStores();
@@ -602,7 +597,7 @@ class Product extends Import
                     continue;
                 }
 
-                if (strlen($value) > 0) {
+                if ($value !== '') {
                     $data[$column] = new Expr('"' . $value . '"');
 
                     continue;
@@ -615,7 +610,7 @@ class Product extends Import
             }
         }
 
-        /** @var Select $configurable */
+        /** @var Select $select */
         $select = $connection->select()
             ->from(['e' => $productTmpTable], $data)
             ->joinInner(['v' => $productModelTable],'e.' . $groupColumn . ' = v.code', [])
@@ -624,10 +619,44 @@ class Product extends Import
 
         /** @var string $query */
         $query = $connection->insertFromSelect($select, $configurableTmpTable, array_keys($data));
-
         $connection->query($query);
 
-        // Map PIM attributes to Magento attributes, for low-level configurables.
+        // Query tmp_pimgento_entities_low_level_configurables for entries without a parent,
+        // and write them straight back to tmp_pimgento_entities_product.
+
+        $commonColumns = array_intersect(
+            array_keys($connection->describeTable($configurableTmpTable)),
+            array_keys($connection->describeTable($productTmpTable))
+        );
+
+        $data = [];
+        /**
+         * @var int $index
+         * @var string $column
+         */
+        foreach ($commonColumns as $index => $column) {
+            $data[$column] = $column;
+        }
+
+        /** @var Select $select */
+        $select = $connection->select()
+            ->from(['e' => $configurableTmpTable], $data)
+            ->joinInner(['v' => $productModelTable],'e.identifier = v.code', [])
+            ->where('v.parent = ""');
+
+        /** @var string $query */
+        $query = $connection->insertFromSelect($select, $productTmpTable, array_keys($data));
+        $connection->query($query);
+    }
+
+    /**
+     * Map PIM attributes to Magento attributes for configurables products,
+     * i.e. copy columns of tmp_pimgento_entities_low_level_configurable, named after PIM attributes,
+     * to new columns named after magento attributes, as defined in the Pimgento-settings GUI.
+     */
+    public function mapAttributesForConfigurables()
+    {
+        $configurableTmpTable = $this->entitiesHelper->getTableName($this->configurableTmpTableSuffix);
 
         /** @var string|array $matches */
         $matches = $this->scopeConfig->getValue(ConfigHelper::PRODUCT_ATTRIBUTE_MAPPING_CONFIGURABLE);
@@ -637,8 +666,6 @@ class Product extends Import
         if (!is_array($matches)) {
             return;
         }
-        /** @var array $stores */
-        $stores = $this->storeHelper->getAllStores();
         /** @var array $match */
         foreach ($matches as $match) {
             if (!isset($match['pim_attribute'], $match['magento_attribute'])) {
@@ -649,21 +676,7 @@ class Product extends Import
             /** @var string $magentoAttribute */
             $magentoAttribute = $match['magento_attribute'];
             $this->entitiesHelper->copyColumn($configurableTmpTable, $pimAttribute, $magentoAttribute);
-            /**
-             * @var string $local
-             * @var string $affected
-             */
-            foreach ($stores as $local => $affected) {
-                $this->entitiesHelper->copyColumn(
-                    $configurableTmpTable,
-                    $pimAttribute . '-' . $local,
-                    $magentoAttribute . '-' . $local
-                );
-            }
         }
-
-        // TODO query tmp_pimgento_entities_low_level_configurables for lines without a parent,
-        // and write them straight back to tmp_pimgento_entities_product.
     }
 
      /**
@@ -716,35 +729,6 @@ class Product extends Import
         $matches = $this->scopeConfig->getValue(ConfigHelper::PRODUCT_ATTRIBUTE_MAPPING_CONFIGURABLE);
         $matches = $this->serializer->unserialize($matches);
 
-        // $matches is an array like [['pim_attribute' => value, 'magento_attribute' => value], ..]
-        if (!is_array($matches)) {
-            return;
-        }
-        /** @var array $stores */
-        $stores = $this->storeHelper->getAllStores();
-        /** @var array $match */
-        foreach ($matches as $match) {
-            if (!isset($match['pim_attribute'], $match['magento_attribute'])) {
-                continue;
-            }
-            /** @var string $pimAttribute */
-            $pimAttribute = $match['pim_attribute'];
-            /** @var string $magentoAttribute */
-            $magentoAttribute = $match['magento_attribute'];
-            $this->entitiesHelper->copyColumn($productTmpTable, $pimAttribute, $magentoAttribute);
-            /**
-             * @var string $local
-             * @var string $affected
-             */
-            foreach ($stores as $local => $affected) {
-                $this->entitiesHelper->copyColumn(
-                    $productTmpTable,
-                    $pimAttribute . '-' . $local,
-                    $magentoAttribute . '-' . $local
-                );
-            }
-        }
-
         foreach ($matches as $match) {
             $connection->addColumn($productTmpTable, $match['magento_attribute'], 'text');
             $data[$match['magento_attribute']] = $match['magento_attribute'];
@@ -769,115 +753,59 @@ class Product extends Import
         /** @var string $query */
         $query = $connection->insertFromSelect($select, $productTmpTable, array_keys($data));
         $connection->query($query);
-
     }
 
-//    /**
-//     * Create configurables
-//     *
-//     * @return void
-//     * @throws \Zend_Db_Statement_Exception
-//     */
-//    public function createConfigurable()
-//    {
-//        // called by different steps of the Product-import process.
-//
-//        /** @var AdapterInterface $connection */
-//        $connection = $this->entitiesHelper->getConnection();
-//
-//        // // ***** ROUND 2
-//        // This second round of processing determines if the configurables now listed in
-//        // the intermediate temporary table (tmp_pimgento_entities_configurable) themselves have parents.
-//
-//        // For configurables that have a parent, get that parent and insert it into
-//        // the "final" temporary table, $productTmpTable (tmp_pimgento_entities_product).
-//
-//        /** @var array $data */
-//        $data = [
-//            'identifier'         => 'v.parent',
-//            'url_key'            => 'v.parent',
-//            '_children'          => new Expr('GROUP_CONCAT(e._children SEPARATOR ",")'),
-//            '_type_id'           => new Expr('"configurable"'),
-//            '_options_container' => new Expr('"container1"'),
-//            '_status'            => 'e._status',
-//            '_axis'              => 'v.axis',
-//        ];
-//
-//        if ($connection->tableColumnExists($configurableTmpTable, 'family')) {
-//            $data['family'] = 'e.family';
-//        }
-//        if ($connection->tableColumnExists($configurableTmpTable, 'categories')) {
-//            $data['categories'] = 'e.categories';
-//        }
-//
-//        // Ensure extra data fetched from the variant table
-//        // do not overwrite data that are already part of the select.
-//
-//        $extraVariantTableData = [];
-//        foreach ($commonColumns as $column) {
-//            if (!isset($data[$column])) $extraVariantTableData[$column] = $column;
-//        }
-//
-//        // Which of these extra data are really relevant
-//
-//        $select = $connection->select()
-//            ->from($variantTable, $extraVariantTableData)
-//            ->where('parent IS NULL')
-//            ->orWhere('parent=""')
-//            ->limit(1);
-//        $query = $connection->query($select);
-//        $extraVariantTableData = $query->fetch();
-//        foreach ($extraVariantTableData as $key => $value) {
-//            if ($value !== null && $value !== '') $data[$key] = 'v.' . $key;
-//        }
-//
-//        // TODO determine whether loop for $additional might be necessary / functional here.
-//
-//        /** @var Select $configurable */
-//        $configurable = $connection->select()
-//            ->from(['e' => $configurableTmpTable], $data)
-//            ->joinInner(['v' => $variantTable],'e.identifier = v.code', [])
-//            ->where('v.parent <> ""')
-//            ->group('v.parent');
-//        $this->logger->info("==== L681 ====");
-//        $this->logger->info($configurable->assemble());
-//
-//        /** @var string $query */
-//        $query = $connection->insertFromSelect($configurable, $productTmpTable, array_keys($data));
-//
-//        $connection->query($query);
-//
-//        // For configurables that don't have a parent, retain that configurable _as is_
-//        // and insert it into the "final" temporary table, $productTmpTable (tmp_pimgento_entities_product).
-//
-//        $data = [
-//            'identifier'         => 'e.identifier',
-//            'url_key'            => 'e.url_key',
-//            '_children'          => 'e._children',
-//            '_type_id'           => new Expr('"configurable"'),
-//            '_options_container' => new Expr('"container1"'),
-//            '_status'            => 'e._status',
-//            '_axis'              => 'v.axis',
-//        ];
-//
-//        if ($connection->tableColumnExists($configurableTmpTable, 'family')) {
-//            $data['family'] = 'e.family';
-//        }
-//        if ($connection->tableColumnExists($configurableTmpTable, 'categories')) {
-//            $data['categories'] = 'e.categories';
-//        }
-//
-//        // TODO determine whether loop for $additional might be necessary / functional here.
-//
-//        $configurable = $connection->select()
-//            ->from(['e' => $configurableTmpTable], $data)
-//            ->joinInner(['v' => $variantTable],'e.identifier = v.code', [])
-//            ->where('v.parent = ""');
-//
-//        $query = $connection->insertFromSelect($configurable, $productTmpTable, array_keys($data));
-//
-//        $connection->query($query);
-//    }
+    /**
+     * For each PIM-Magento attribute mapping, add an extra column in tmp_pimgento_entities_product
+     * for each applicable store.
+     *
+     * @throws LocalizedException
+     */
+    public function addAttributeLocalColumns()
+    {
+        /** @var string $productTmpTable */
+        $productTmpTable = $this->entitiesHelper->getTableName($this->getCode());
+
+        $mappingTypes = [
+            'simple'        => ConfigHelper::PRODUCT_ATTRIBUTE_MAPPING_SIMPLE,
+            'configurable'  => ConfigHelper::PRODUCT_ATTRIBUTE_MAPPING_CONFIGURABLE
+        ];
+        $matchTypes = [];
+        foreach ($mappingTypes as $productType => $mapping) {
+            $matches = $this->serializer->unserialize(
+                $this->scopeConfig->getValue($mapping)
+            );
+            if (is_array($matches)) {
+                $matchTypes[$productType] = $matches;
+            }
+        }
+
+        /** @var array $stores */
+        $stores = $this->storeHelper->getAllStores();
+
+        foreach ($matchTypes as $productType => $matches) {
+            foreach ($matches as $match) {
+                if (!isset($match['pim_attribute'], $match['magento_attribute'])) {
+                    continue;
+                }
+                /** @var string $pimAttribute */
+                $pimAttribute = $match['pim_attribute'];
+                /** @var string $magentoAttribute */
+                $magentoAttribute = $match['magento_attribute'];
+                /**
+                 * @var string $local
+                 * @var string $affected
+                 */
+                foreach ($stores as $local => $affected) {
+                    $this->entitiesHelper->copyColumn(
+                        $productTmpTable,
+                        $pimAttribute . '-' . $local,
+                        $magentoAttribute . '-' . $local
+                    );
+                }
+            }
+        }
+    }
 
     /**
      * Match code with entity
