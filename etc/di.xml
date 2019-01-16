@@ -139,14 +139,22 @@
                         <item name="comment" xsi:type="string">Fill temporary table</item>
                     </item>
                     <item name="3" xsi:type="array">
-                        <item name="method" xsi:type="string">updateAxis</item>
-                        <item name="comment" xsi:type="string">Update Axis column</item>
+                        <item name="method" xsi:type="string">updateAxisCodes</item>
+                        <item name="comment" xsi:type="string">Update Axis Codes column</item>
                     </item>
                     <item name="4" xsi:type="array">
+                        <item name="method" xsi:type="string">forkMetricAttributes</item>
+                        <item name="comment" xsi:type="string">Enrich axes with forks of PIM metric attributes</item>
+                    </item>
+                    <item name="5" xsi:type="array">
+                        <item name="method" xsi:type="string">updateAxisIds</item>
+                        <item name="comment" xsi:type="string">Update Axis column where axes are identified by their ID</item>
+                    </item>
+                    <item name="6" xsi:type="array">
                         <item name="method" xsi:type="string">updateProductModel</item>
                         <item name="comment" xsi:type="string">Update Product Model</item>
                     </item>
-                    <item name="5" xsi:type="array">
+                    <item name="7" xsi:type="array">
                         <item name="method" xsi:type="string">dropTable</item>
                         <item name="comment" xsi:type="string">Drop temporary table</item>
                     </item>

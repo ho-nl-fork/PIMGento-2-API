@@ -4,7 +4,6 @@ namespace Pimgento\Api\Job;
 
 use Akeneo\Pim\ApiClient\Pagination\PageInterface;
 use Akeneo\Pim\ApiClient\Pagination\ResourceCursorInterface;
-use JsonSchema\Exception\RuntimeException;
 use Magento\Catalog\Model\Product\Link;
 use Magento\Catalog\Model\ProductLink\Link as ProductLink;
 use Magento\Catalog\Model\Product\Visibility;
@@ -262,7 +261,7 @@ class Product extends Import
 
         // What attributes have been forked during the FamilyVariant import job?
         // $attributeForks contains K=>V pairs like so:
-        // FORKED_CODE => ['code_fork'=>FORKED_CODE, 'code_orig'=> ORIGINAL_CODE, 'unit'=>UNIT]
+        // ['code_fork'=>FORKED_CODE, 'code_orig'=> ORIGINAL_CODE, 'unit'=>UNIT]
 
         /** @var Select $select */
         $select = $connection->select()->from(
@@ -297,6 +296,7 @@ class Product extends Import
                 $optionsTableColumns = array_keys(
                     $connection->describeTable(
                         $this->entitiesHelper->getTableName($this->optionJob->getCode())
+                    // Describing table tmp_pimgento_entities_option
                     )
                 );
                 /** @var array $localeSuffixes */
@@ -310,12 +310,16 @@ class Product extends Import
 
                 foreach ($attributeForks as $forkedCode => $attributeFork) {
 
-                    // On the Product tmp table front, rename columns that reference a forked attribute.
+//                    // On the Product tmp table front, rename columns that reference a forked attribute.
+//
+//                    $sql = 'ALTER TABLE '
+//                        . $productTmpTable
+//                        . ' CHANGE ' . $attributeFork['code_orig'] . ' ' . $forkedCode . ' text';
+//                    $connection->query($sql);
 
-                    $sql = 'ALTER TABLE '
-                        . $productTmpTable
-                        . ' CHANGE ' . $attributeFork['code_orig'] . ' ' . $forkedCode . ' text';
-                    $connection->query($sql);
+                    // On the Product tmp table front, fork necessary columns.
+
+                    $this->entitiesHelper->copyColumn($productTmpTable, $attributeFork['code_orig'], $forkedCode);
 
                     // Make a list of all options present in the Product tmp table.
 
@@ -334,7 +338,7 @@ class Product extends Import
 
                     foreach ($options as $option) {
                         $data = [
-                            'code'          => $option,
+                            'code'          => $option . ' ' . $attributeFork['unit'],
                             'attribute'     => $forkedCode,
                         ];
                         // Add labels for each locale.
@@ -351,11 +355,7 @@ class Product extends Import
                 }
 
                 // Complete the Options import job.
-                $this->optionJob->matchEntities();
-                $this->optionJob->insertOptions();
-                $this->optionJob->insertValues();
-                $this->optionJob->dropTable();
-                $this->optionJob->cleanCache();
+                $this->optionJob->runFromStep(3);
             }
         }
     }
@@ -679,7 +679,7 @@ class Product extends Import
         }
     }
 
-     /**
+    /**
      * In tmp_pimtento_entities_low_level_configurables, identify which entries have higher-level parents.
      * Grab those top-level configurables and write them back to tmp_pimgento_entities_product.
      *
@@ -1227,30 +1227,36 @@ class Product extends Import
 
         /** @var array $row */
         while ($row = $query->fetch()) {
+
+            $this->logger->info("In function linkConfigurable");
+            $this->logger->info(print_r($row, true));
             if (!isset($row['_axis'])) {
+                $this->logger->info("No axis");
                 continue;
             }
-
+            
             /** @var array $attributes */
             $attributes = explode(',', $row['_axis']);
             /** @var int $position */
             $position = 0;
-
+            
             /** @var int $id */
             foreach ($attributes as $id) {
                 if (!is_numeric($id) || !isset($row['_entity_id']) || !isset($row['_children'])) {
+                    $this->logger->info("Id is not a numeric or no _entity_id found of no childern found");
                     continue;
                 }
-
+                
                 /** @var bool $hasOptions */
                 $hasOptions = (bool)$connection->fetchOne(
                     $connection->select()
-                        ->from($connection->getTableName('eav_attribute_option'), [new Expr(1)])
-                        ->where('attribute_id = ?', $id)
-                        ->limit(1)
+                    ->from($connection->getTableName('eav_attribute_option'), [new Expr(1)])
+                    ->where('attribute_id = ?', $id)
+                    ->limit(1)
                 );
-
+                
                 if (!$hasOptions) {
+                    $this->logger->info("no option found");
                     continue;
                 }
 
@@ -1301,6 +1307,7 @@ class Product extends Import
                     );
 
                     if (!$childId) {
+                        $this->logger->info("No child ID");
                         continue;
                     }
 
