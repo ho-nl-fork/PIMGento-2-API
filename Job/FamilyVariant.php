@@ -39,10 +39,6 @@ class FamilyVariant extends Import
      */
     const FAMILY_FORK_SUFFIX = '_fork';
     /**
-     * @var string METRIC_UNIT_SUFFIX
-     */
-    const METRIC_UNIT_SUFFIX = '_unit';
-    /**
      * @var string FORKED_ATTRIBUTE_TABLE_NAME
      */
     const FORKED_ATTRIBUTE_TABLE_NAME = 'pimgento_forked_attribute';
@@ -189,11 +185,12 @@ class FamilyVariant extends Import
     }
 
     /**
-     * Update Axis column
+     * Update Axis Codes column
      *
      * @return void
+     * @throws \Zend_Db_Exception
      */
-    public function updateAxis()
+    public function updateAxisCodes()
     {
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
@@ -230,8 +227,22 @@ class FamilyVariant extends Import
             $update = 'TRIM(BOTH "," FROM CONCAT(COALESCE(`' . join('`, \'\' ), "," , COALESCE(`', $columns) . '`, \'\')))';
             $connection->update($tmpTable, ['_axis_codes' => new Expr($update)]);
         }
+    }
 
-        // Make an array of all _axis_codes present in the Family Variant tmp table, without duplicates.
+    /**
+     * Enrich axes with new Magento 'select' attributes derived from PIM 'metric' attributes.
+     *
+     * @throws \Zend_Db_Exception
+     * @throws \Zend_Db_Statement_Exception
+     */
+    public function forkMetricAttributes()
+    {
+        /** @var AdapterInterface $connection */
+        $connection = $this->entitiesHelper->getConnection();
+        /** @var string $tmpTable */
+        $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
+
+        // Make an array of ALL _axis_codes present in tmp_pimgento_entities_family_variant, without duplicates.
 
         /** @var \Zend_Db_Statement_Interface $variantFamily */
         $variantFamily = $connection->query(
@@ -247,8 +258,9 @@ class FamilyVariant extends Import
         /** @var array $allAxisCodes */
         $allAxisCodes = array_unique($allAxisCodesTmp);
 
-        // Query Attribute API to get all attributes whose type is "metric".
-        // $metricAttributes contains K=>V pairs of the type ORIGINAL_ATTRIBUTE_CODE => ORIGINAL_ATTRIBUTE_AS_ARRAY
+        // Query Pim API to for all attributes whose type is "metric".
+        // $metricAttributes contains K=>V pairs of the type
+        // METRIC_ATTRIBUTE_CODE => METRIC_ATTRIBUTE_ARRAY_FROM_API
 
         $metricAttributes = [];
         $attributes = $this->akeneoClient->getAttributeApi()->all();
@@ -258,8 +270,12 @@ class FamilyVariant extends Import
             }
         }
 
-        // Are any of the attributes identified as metric present in the Family Variant tmp table?
-        // $metricAttributes contains K=>V pairs of the type ORIGINAL_ATTRIBUTE_CODE => FORKED_ATTRIBUTE_AS_ARRAY
+        // Are any of those "metric" attributes present in tmp_pimgento_entities_family_variant?
+        // If so, use them to create new attributes with
+        // * a new code, patterned after ORIGINAL_CODE + '_FORK'
+        // * a new type: 'pim_catalog_simple_select' instead of 'pim_catalog_metric'
+
+        // $newAttributes contains K=>V pairs of the type ORIGINAL_CODE_FORK => FORKED_ATTRIBUTE_ARRAY
 
         /** @var array $newAttributes */
         $newAttributes = [];
@@ -277,20 +293,19 @@ class FamilyVariant extends Import
 
         if (count($newAttributes)) {
 
-            // Write those attributes to a new attribute tmp table
+            // Write those attributes to a fresh tmp_pimgento_entities_attribute table
             $this->entitiesHelper->createTmpTableFromApi(reset($newAttributes), $this->attributeJob->getCode());
             foreach ($newAttributes as $index => $attribute) {
                 $this->entitiesHelper->insertDataFromApi($attribute, $this->attributeJob->getCode());
             }
 
-            // Process that table as an attribute job.
-            $this->attributeJob->matchEntities();
-            $this->attributeJob->matchType();
-            $this->attributeJob->matchFamily();
-            $this->attributeJob->addAttributes();
-            $this->attributeJob->dropTable();
+            // Process  tmp_pimgento_entities_attribute as an attribute job,
+            // so that the forked attributes are properly imported.
+            // Kicking off with "matchEntities()" step, since the table is already created and populated.
+            $this->attributeJob->runFromStep(3);
 
-            // In the _axis_codes column of the tmp table, replace the codes of attributes that have been superseded.
+            // In the _axis_codes column of the tmp table, replace the codes of attributes
+            // that have been superseded by their "forked" equivalents.
             $variantFamily = $connection->query(
                 $connection->select()->from($tmpTable)
             );
@@ -308,35 +323,21 @@ class FamilyVariant extends Import
                 $connection->update($tmpTable, ['_axis_codes' => join(',', $newAxisCodes)], ['code = ?' => $row['code']]);
             }
 
-            // Persist the codes of the attributes that required duplication.
+            // Create a new table, pimgento_forked_attribute, to keep track of:
+            // * what attributes have been forked;
+            // * the names of the forks;
+            // This table will come in handy when the Product import job is run.
 
             $connection = $this->entitiesHelper->getConnection();
-
-            // Drop table if it exists.
             $connection->resetDdlCache(self::FORKED_ATTRIBUTE_TABLE_NAME);
             $connection->dropTable(self::FORKED_ATTRIBUTE_TABLE_NAME);
 
-            // Create table.
             $forkedAttributeTable = $connection->newTable(self::FORKED_ATTRIBUTE_TABLE_NAME)
                 ->addColumn('code', 'text')
-                ->addColumn('code' . self::FAMILY_FORK_SUFFIX, 'text')
-                ->addColumn('code' . self::METRIC_UNIT_SUFFIX, 'text');
+                ->addColumn('code' . self::FAMILY_FORK_SUFFIX, 'text');
             $connection->createTable($forkedAttributeTable);
 
-            // Fetch all Measure Families from the API.
-            $measureFamilies = $this->akeneoClient->getMeasureFamilyApi()->all();
-
             foreach ($newAttributes as $originalCode => $newAttribute) {
-
-                // If in the PIM's "measure families" there is a symbol for this particular unit, use it.
-                foreach ($measureFamilies as $measureFamily) {
-                    foreach ($measureFamily['units'] as $unit) {
-                        if ($newAttribute['default_metric_unit'] === $unit['code']) {
-                            $newAttribute['default_metric_unit'] = $unit['symbol'];
-                            break 2;
-                        }
-                    }
-                }
 
                 // Insert data.
                 $connection->insertOnDuplicate(
@@ -344,10 +345,23 @@ class FamilyVariant extends Import
                     [
                         'code'                              => $originalCode,
                         'code' . self::FAMILY_FORK_SUFFIX   => $newAttribute['code'],
-                        'code' . self::METRIC_UNIT_SUFFIX   => $newAttribute['default_metric_unit']
                     ]);
             }
         }
+    }
+
+    /**
+     * In the tmp table, derive from the _axis_code column
+     * an _axis column where variations are identified by their id.
+     *
+     * @throws \Zend_Db_Statement_Exception
+     */
+    public function updateAxisIds()
+    {
+        /** @var AdapterInterface $connection */
+        $connection = $this->entitiesHelper->getConnection();
+        /** @var string $tmpTable */
+        $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
 
         // In the tmp table, derive from the _axis_code column
         // an _axis column where variations are identified by their id.

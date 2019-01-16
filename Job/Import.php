@@ -530,4 +530,22 @@ abstract class Import extends DataObject implements ImportInterface
     {
         return $this->isEnterprise;
     }
+
+    /**
+     * Pick up the Import job from the specified step.
+     * The step's number can be found under its "name" attribute in etc/di.xml
+     *
+     * @param int $step
+     */
+    public function runFromStep($step)
+    {
+        $this->step = $step;
+        do  {
+            $response = $this->execute();
+        } while (
+            !empty($response['message'])
+            && $response['status']
+            && $response['continue']
+        );
+    }
 }
