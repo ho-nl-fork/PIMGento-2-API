@@ -39,10 +39,6 @@ class FamilyVariant extends Import
      */
     const FAMILY_FORK_SUFFIX = '_fork';
     /**
-     * @var string METRIC_UNIT_SUFFIX
-     */
-    const METRIC_UNIT_SUFFIX = '_unit';
-    /**
      * @var string FORKED_ATTRIBUTE_TABLE_NAME
      */
     const FORKED_ATTRIBUTE_TABLE_NAME = 'pimgento_forked_attribute';
@@ -330,7 +326,6 @@ class FamilyVariant extends Import
             // Create a new table, pimgento_forked_attribute, to keep track of:
             // * what attributes have been forked;
             // * the names of the forks;
-            // * the units associated with the metric, if any.
             // This table will come in handy when the Product import job is run.
 
             $connection = $this->entitiesHelper->getConnection();
@@ -339,24 +334,10 @@ class FamilyVariant extends Import
 
             $forkedAttributeTable = $connection->newTable(self::FORKED_ATTRIBUTE_TABLE_NAME)
                 ->addColumn('code', 'text')
-                ->addColumn('code' . self::FAMILY_FORK_SUFFIX, 'text')
-                ->addColumn('code' . self::METRIC_UNIT_SUFFIX, 'text');
+                ->addColumn('code' . self::FAMILY_FORK_SUFFIX, 'text');
             $connection->createTable($forkedAttributeTable);
 
-            // Fetch all Measure Families from the API.
-            $measureFamilies = $this->akeneoClient->getMeasureFamilyApi()->all();
             foreach ($newAttributes as $originalCode => $newAttribute) {
-
-                // If in the PIM's "measure families" there is a symbol for this particular unit,
-                // use it instead of the code -- e.g. use "cm²" rather than "SQUARE_CENTIMETER".
-                foreach ($measureFamilies as $measureFamily) {
-                    foreach ($measureFamily['units'] as $unit) {
-                        if ($newAttribute['default_metric_unit'] === $unit['code']) {
-                            $newAttribute['default_metric_unit'] = $unit['symbol'];
-                            break 2;
-                        }
-                    }
-                }
 
                 // Insert data.
                 $connection->insertOnDuplicate(
@@ -364,7 +345,6 @@ class FamilyVariant extends Import
                     [
                         'code'                              => $originalCode,
                         'code' . self::FAMILY_FORK_SUFFIX   => $newAttribute['code'],
-                        'code' . self::METRIC_UNIT_SUFFIX   => $newAttribute['default_metric_unit']
                     ]);
             }
         }
@@ -451,7 +431,7 @@ class FamilyVariant extends Import
      */
     public function dropTable()
     {
-//        $this->entitiesHelper->dropTable($this->getCode());
+        $this->entitiesHelper->dropTable($this->getCode());
     }
 
     /**

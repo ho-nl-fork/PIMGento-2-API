@@ -277,7 +277,7 @@ class ProductModel extends Import
      */
     public function dropTable()
     {
-//        $this->entitiesHelper->dropTable($this->getCode());
+        $this->entitiesHelper->dropTable($this->getCode());
     }
 
     /**

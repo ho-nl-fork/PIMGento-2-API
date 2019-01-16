@@ -269,7 +269,6 @@ class Product extends Import
             [
                 'code_fork' => 'code' . FamilyVariant::FAMILY_FORK_SUFFIX,
                 'code_orig' => 'code',
-                'unit' => 'code' . FamilyVariant::METRIC_UNIT_SUFFIX
             ]
         )   ->where('code' . FamilyVariant::FAMILY_FORK_SUFFIX . ' IS NOT NULL')
             ->where('code' . FamilyVariant::FAMILY_FORK_SUFFIX . ' <> ""');
@@ -308,6 +307,10 @@ class Product extends Import
                     }
                 }
 
+                // Fetch all units from the API.
+
+                $measureFamilies = $this->akeneoClient->getMeasureFamilyApi()->all();
+
                 foreach ($attributeForks as $forkedCode => $attributeFork) {
 
                     // On the Product tmp table front, fork necessary columns.
@@ -317,32 +320,46 @@ class Product extends Import
                     // Make a list of all options present in the Product tmp table.
 
                     $select = $connection->select()
+                        ->distinct()
                         ->from($productTmpTable, $forkedCode)
                         ->where($forkedCode . '!=""')
                         ->where($forkedCode . ' IS NOT NULL');
                     /** @var \Magento\Framework\DB\Statement\Pdo\Mysql $query */
                     $query = $connection->query($select);
 
-                    $options = [];
                     while ($row = $query->fetch()) {
-                        $options[] = $row[$forkedCode];
-                    }
-                    $options = array_unique($options);
+                        $option = $row[$forkedCode];
+                        
+                        // Separate unit from amount
+                        $matches = [];
+                        preg_match('#(.*) ([^ ]+)$#U', $option, $matches);
+                        list(, $amount, $unitCode) = $matches;
 
-                    foreach ($options as $option) {
+                        // Query API for unit symbol matching the code.
+                        $unitSymbol = '';
+                        foreach ($measureFamilies as $measureFamily) {
+                            foreach ($measureFamily['units'] as $apiUnit) {
+                                if ($unitCode === $apiUnit['code']) {
+                                    $unitSymbol = $apiUnit['symbol'];
+                                    break 2;
+                                }
+                            }
+                        }
+
                         $data = [
-                            'code'          => $option . ' ' . $attributeFork['unit'],
+                            'code'          => $option,
                             'attribute'     => $forkedCode,
                         ];
                         // Add labels for each locale.
                         foreach ($localeSuffixes as $localeSuffix) {
-                            $data['labels-' . $localeSuffix] = $option . ' ' . $attributeFork['unit'];
+                            $data['labels-' . $localeSuffix] = $amount . ' ' . $unitSymbol;
                         }
                         // Write data to the Options tmp table.
                         $connection->insertOnDuplicate(
                             $this->entitiesHelper->getTableName($this->optionJob->getCode()),
                             $data
                         );
+
                     }
 
                 }
@@ -2207,8 +2224,8 @@ class Product extends Import
      */
     public function dropTable()
     {
-//        $this->entitiesHelper->dropTable($this->getCode());
-//        $this->entitiesHelper->dropTable($this->configurableTmpTableSuffix);
+        $this->entitiesHelper->dropTable($this->getCode());
+        $this->entitiesHelper->dropTable($this->configurableTmpTableSuffix);
     }
 
     /**
