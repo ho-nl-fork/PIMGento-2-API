@@ -310,13 +310,6 @@ class Product extends Import
 
                 foreach ($attributeForks as $forkedCode => $attributeFork) {
 
-//                    // On the Product tmp table front, rename columns that reference a forked attribute.
-//
-//                    $sql = 'ALTER TABLE '
-//                        . $productTmpTable
-//                        . ' CHANGE ' . $attributeFork['code_orig'] . ' ' . $forkedCode . ' text';
-//                    $connection->query($sql);
-
                     // On the Product tmp table front, fork necessary columns.
 
                     $this->entitiesHelper->copyColumn($productTmpTable, $attributeFork['code_orig'], $forkedCode);
@@ -1228,10 +1221,7 @@ class Product extends Import
         /** @var array $row */
         while ($row = $query->fetch()) {
 
-            $this->logger->info("In function linkConfigurable");
-            $this->logger->info(print_r($row, true));
             if (!isset($row['_axis'])) {
-                $this->logger->info("No axis");
                 continue;
             }
             
@@ -1243,7 +1233,6 @@ class Product extends Import
             /** @var int $id */
             foreach ($attributes as $id) {
                 if (!is_numeric($id) || !isset($row['_entity_id']) || !isset($row['_children'])) {
-                    $this->logger->info("Id is not a numeric or no _entity_id found of no childern found");
                     continue;
                 }
                 
@@ -1256,7 +1245,6 @@ class Product extends Import
                 );
                 
                 if (!$hasOptions) {
-                    $this->logger->info("no option found");
                     continue;
                 }
 
@@ -1307,7 +1295,6 @@ class Product extends Import
                     );
 
                     if (!$childId) {
-                        $this->logger->info("No child ID");
                         continue;
                     }
 
