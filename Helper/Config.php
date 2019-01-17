@@ -639,7 +639,7 @@ class Config extends AbstractHelper
     public function isUrlKeyMapped()
     {
         /** @var mixed $matches */
-        $matches = $this->scopeConfig->getValue(self::PRODUCT_ATTRIBUTE_MAPPING);
+        $matches = $this->scopeConfig->getValue(self::PRODUCT_ATTRIBUTE_MAPPING_SIMPLE);
         /** @var mixed[] $matches */
         $matches = $this->serializer->unserialize($matches);
         if (!is_array($matches)) {
