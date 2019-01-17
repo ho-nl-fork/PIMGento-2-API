@@ -372,12 +372,13 @@ class FamilyVariant extends Import
             'COMMENT' => ' '
         ]);
 
-        $select = $connection->select()->from(
-            $connection->getTableName('eav_attribute'),
-            ['attribute_code', 'attribute_id']
-        )->where('entity_type_id = ?', $this->getEntityTypeId());
         /** @var array $attributes */
-        $attributes = $connection->fetchPairs($select);
+        $attributes = $connection->fetchPairs(
+            $connection->select()->from(
+                $this->entitiesHelper->getTable('eav_attribute'),
+                ['attribute_code', 'attribute_id']
+            )->where('entity_type_id = ?', $this->getEntityTypeId())
+        );
 
         /** @var \Zend_Db_Statement_Interface $variantFamily */
         $variantFamily = $connection->query(
