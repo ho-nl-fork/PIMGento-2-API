@@ -55,6 +55,7 @@ class Config extends AbstractHelper
     const PRODUCT_ATTRIBUTE_MAPPING_CONFIGURABLE = 'pimgento/product/attribute_mapping_configurable';
     const PRODUCT_CONFIGURABLE_ATTRIBUTES = 'pimgento/product/configurable_attributes';
     const PRODUCT_TAX_CLASS = 'pimgento/product/tax_class';
+    const PRODUCT_URL_GENERATION_ENABLED = 'pimgento/product/url_generation_enabled';
     const PRODUCT_MEDIA_ENABLED = 'pimgento/product/media_enabled';
     const PRODUCT_MEDIA_IMAGES = 'pimgento/product/media_images';
     const PRODUCT_MEDIA_GALLERY = 'pimgento/product/media_gallery';
@@ -467,6 +468,16 @@ class Config extends AbstractHelper
     }
 
     /**
+     * Description isUrlGenerationEnabled function
+     *
+     * @return bool
+     */
+    public function isUrlGenerationEnabled()
+    {
+        return $this->scopeConfig->isSetFlag(self::PRODUCT_URL_GENERATION_ENABLED);
+    }
+
+    /**
      * Retrieve media attribute column
      *
      * @return array
@@ -618,5 +629,36 @@ class Config extends AbstractHelper
             ScopeInterface::SCOPE_STORE,
             $storeId
         );
+    }
+
+    /**
+     * Check if url_key attribute is mapped with PIM attribute
+     *
+     * @return bool
+     */
+    public function isUrlKeyMapped()
+    {
+        /** @var mixed $matches */
+        $matches = $this->scopeConfig->getValue(self::PRODUCT_ATTRIBUTE_MAPPING);
+        /** @var mixed[] $matches */
+        $matches = $this->serializer->unserialize($matches);
+        if (!is_array($matches)) {
+            return false;
+        }
+
+        /** @var mixed[] $match */
+        foreach ($matches as $match) {
+            if (!isset($match['pim_attribute'], $match['magento_attribute'])) {
+                continue;
+            }
+
+            /** @var string $magentoAttribute */
+            $magentoAttribute = $match['magento_attribute'];
+            if ($magentoAttribute === 'url_key') {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

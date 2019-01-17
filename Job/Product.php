@@ -112,7 +112,7 @@ class Product extends Import
      */
     protected $product;
     /**
-     * This variable containsa ProductUrlPathGenerator
+     * This variable contains a ProductUrlPathGenerator
      *
      * @var ProductUrlPathGenerator $productUrlPathGenerator
      */
@@ -215,7 +215,7 @@ class Product extends Import
     }
 
     /**
-     * Insert data Product temporary table.
+     * Insert data into Product temporary table, tmp_pimgento_entities_product
      *
      * @return void
      */
@@ -329,7 +329,7 @@ class Product extends Import
 
                     while ($row = $query->fetch()) {
                         $option = $row[$forkedCode];
-                        
+
                         // Separate unit from amount
                         $matches = [];
                         preg_match('#(.*) ([^ ]+)$#U', $option, $matches);
@@ -430,7 +430,7 @@ class Product extends Import
                 'default' => 2,
                 'COMMENT' => ' ',
                 'nullable' => false
-            ]);
+            ]); // Disabled
             if (!$connection->tableColumnExists($tmpTable, 'url_key')) {
                 $connection->addColumn($tmpTable, 'url_key', [
                     'type' => 'text',
@@ -548,6 +548,9 @@ class Product extends Import
             '_children'          => new Expr('GROUP_CONCAT(e.identifier SEPARATOR ",")'),
             '_axis'              => 'v.axis',
         ];
+        if ($this->configHelper->isUrlGenerationEnabled()) {
+            $data['url_key'] = 'e.' . $groupColumn;
+        }
 
         // Fetch all usable data from the variant table (pimgento_product_model)
         // to inject it into the low-level configurable tmp table.
@@ -874,7 +877,7 @@ class Product extends Import
         }
 
         /** @var string $entitiesTable */
-        $entitiesTable = $connection->getTableName('pimgento_entities');
+        $entitiesTable = $this->entitiesHelper->getTable('pimgento_entities');
         /** @var Select $families */
         $families = $connection->select()
             ->from(false, ['_attribute_set_id' => 'c.entity_id'])
@@ -949,7 +952,7 @@ class Product extends Import
             /** @var int $prefixLength */
             $prefixLength = strlen($columnPrefix . '_') + 1;
             /** @var string $entitiesTable */
-            $entitiesTable = $connection->getTableName('pimgento_entities');
+            $entitiesTable = $this->entitiesHelper->getTable('pimgento_entities');
 
             // Sub select to increase performance versus FIND_IN_SET
             /** @var Select $subSelect */
@@ -1007,7 +1010,7 @@ class Product extends Import
         /** @var string $tmpTable */
         $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
 
-        if ($connection->isTableExists($connection->getTableName('sequence_product'))) {
+        if ($connection->isTableExists($this->entitiesHelper->getTable('sequence_product'))) {
             /** @var array $values */
             $values  = ['sequence_value' => '_entity_id'];
             /** @var Select $parents */
@@ -1015,7 +1018,7 @@ class Product extends Import
             /** @var string $query */
             $query = $connection->insertFromSelect(
                 $parents,
-                $connection->getTableName('sequence_product'),
+                $this->entitiesHelper->getTable('sequence_product'),
                 array_keys($values),
                 AdapterInterface::INSERT_ON_DUPLICATE
             );
@@ -1024,7 +1027,7 @@ class Product extends Import
         }
 
         /** @var string $table */
-        $table = $connection->getTableName('catalog_product_entity');
+        $table = $this->entitiesHelper->getTable('catalog_product_entity');
         /** @var string $columnIdentifier */
         $columnIdentifier = $this->entitiesHelper->getColumnIdentifier($table);
         /** @var array $values */
@@ -1177,7 +1180,7 @@ class Product extends Import
         foreach ($values as $storeId => $data) {
             $this->entitiesHelper->setValues(
                 $this->getCode(),
-                $connection->getTableName('catalog_product_entity'),
+                'catalog_product_entity',
                 $data,
                 $entityTypeId,
                 $storeId,
@@ -1237,30 +1240,29 @@ class Product extends Import
 
         /** @var array $row */
         while ($row = $query->fetch()) {
-
             if (!isset($row['_axis'])) {
                 continue;
             }
-            
+
             /** @var array $attributes */
             $attributes = explode(',', $row['_axis']);
             /** @var int $position */
             $position = 0;
-            
+
             /** @var int $id */
             foreach ($attributes as $id) {
                 if (!is_numeric($id) || !isset($row['_entity_id']) || !isset($row['_children'])) {
                     continue;
                 }
-                
+
                 /** @var bool $hasOptions */
                 $hasOptions = (bool)$connection->fetchOne(
                     $connection->select()
-                    ->from($connection->getTableName('eav_attribute_option'), [new Expr(1)])
-                    ->where('attribute_id = ?', $id)
-                    ->limit(1)
+                        ->from($this->entitiesHelper->getTable('eav_attribute_option'), [new Expr(1)])
+                        ->where('attribute_id = ?', $id)
+                        ->limit(1)
                 );
-                
+
                 if (!$hasOptions) {
                     continue;
                 }
@@ -1272,7 +1274,7 @@ class Product extends Import
                     'position'     => $position++,
                 ];
                 $connection->insertOnDuplicate(
-                    $connection->getTableName('catalog_product_super_attribute'),
+                    $this->entitiesHelper->getTable('catalog_product_super_attribute'),
                     $values,
                     []
                 );
@@ -1280,7 +1282,7 @@ class Product extends Import
                 /** @var string $superAttributeId */
                 $superAttributeId = $connection->fetchOne(
                     $connection->select()
-                        ->from($connection->getTableName('catalog_product_super_attribute'))
+                        ->from($this->entitiesHelper->getTable('catalog_product_super_attribute'))
                         ->where('attribute_id = ?', $id)
                         ->where('product_id = ?', $row['_entity_id'])
                         ->limit(1)
@@ -1306,7 +1308,7 @@ class Product extends Import
                     /** @var int $childId */
                     $childId = (int)$connection->fetchOne(
                         $connection->select()
-                            ->from($connection->getTableName('catalog_product_entity'), ['entity_id'])
+                            ->from($this->entitiesHelper->getTable('catalog_product_entity'), ['entity_id'])
                             ->where('sku = ?', $child)
                             ->limit(1)
                     );
@@ -1328,19 +1330,19 @@ class Product extends Import
 
                 if (count($valuesSuperLink) > $stepSize) {
                     $connection->insertOnDuplicate(
-                        $connection->getTableName('catalog_product_super_attribute_label'),
+                        $this->entitiesHelper->getTable('catalog_product_super_attribute_label'),
                         $valuesLabels,
                         []
                     );
 
                     $connection->insertOnDuplicate(
-                        $connection->getTableName('catalog_product_relation'),
+                        $this->entitiesHelper->getTable('catalog_product_relation'),
                         $valuesRelations,
                         []
                     );
 
                     $connection->insertOnDuplicate(
-                        $connection->getTableName('catalog_product_super_link'),
+                        $this->entitiesHelper->getTable('catalog_product_super_link'),
                         $valuesSuperLink,
                         []
                     );
@@ -1354,19 +1356,19 @@ class Product extends Import
 
         if (count($valuesSuperLink) > 0) {
             $connection->insertOnDuplicate(
-                $connection->getTableName('catalog_product_super_attribute_label'),
+                $this->entitiesHelper->getTable('catalog_product_super_attribute_label'),
                 $valuesLabels,
                 []
             );
 
             $connection->insertOnDuplicate(
-                $connection->getTableName('catalog_product_relation'),
+                $this->entitiesHelper->getTable('catalog_product_relation'),
                 $valuesRelations,
                 []
             );
 
             $connection->insertOnDuplicate(
-                $connection->getTableName('catalog_product_super_link'),
+                $this->entitiesHelper->getTable('catalog_product_super_link'),
                 $valuesSuperLink,
                 []
             );
@@ -1399,17 +1401,17 @@ class Product extends Import
 
             /** @var Select $select */
             $select = $connection->select()->from(
-                $tmpTable,
-                [
-                    'product_id' => '_entity_id',
-                    'website_id' => new Expr($websiteId),
-                ]
-            );
+                    $tmpTable,
+                    [
+                        'product_id' => '_entity_id',
+                        'website_id' => new Expr($websiteId),
+                    ]
+                );
 
             $connection->query(
                 $connection->insertFromSelect(
                     $select,
-                    $connection->getTableName('catalog_product_website'),
+                    $this->entitiesHelper->getTable('catalog_product_website'),
                     ['product_id', 'website_id'],
                     AdapterInterface::INSERT_ON_DUPLICATE
                 )
@@ -1438,7 +1440,7 @@ class Product extends Import
 
         /** @var Select $select */
         $select = $connection->select()
-            ->from(['c' => $connection->getTableName('pimgento_entities')], [])
+            ->from(['c' => $this->entitiesHelper->getTable('pimgento_entities')], [])
             ->joinInner(
                 ['p' => $tmpTable],
                 'FIND_IN_SET(`c`.`code`, `p`.`categories`) AND `c`.`import` = "category"',
@@ -1447,7 +1449,7 @@ class Product extends Import
                     'product_id'  => 'p._entity_id',
                 ])
             ->joinInner(
-                ['e' => $connection->getTableName('catalog_category_entity')],
+                ['e' => $this->entitiesHelper->getTable('catalog_category_entity')],
                 'c.entity_id = e.entity_id',
                 []
             );
@@ -1455,7 +1457,7 @@ class Product extends Import
         $connection->query(
             $connection->insertFromSelect(
                 $select,
-                $connection->getTableName('catalog_category_product'),
+                $this->entitiesHelper->getTable('catalog_category_product'),
                 ['category_id', 'product_id'],
                 1
             )
@@ -1463,7 +1465,7 @@ class Product extends Import
 
         /** @var Select $selectToDelete */
         $selectToDelete = $connection->select()
-            ->from(['c' => $connection->getTableName('pimgento_entities')], [])
+            ->from(['c' => $this->entitiesHelper->getTable('pimgento_entities')], [])
             ->joinInner(
                 ['p' => $tmpTable],
                 '!FIND_IN_SET(`c`.`code`, `p`.`categories`) AND `c`.`import` = "category"',
@@ -1472,13 +1474,13 @@ class Product extends Import
                     'product_id'  => 'p._entity_id',
                 ])
             ->joinInner(
-                ['e' => $connection->getTableName('catalog_category_entity')],
+                ['e' => $this->entitiesHelper->getTable('catalog_category_entity')],
                 'c.entity_id = e.entity_id',
                 []
             );
 
         $connection->delete(
-            $connection->getTableName('catalog_category_product'),
+            $this->entitiesHelper->getTable('catalog_category_product'),
             '(category_id, product_id) IN (' . $selectToDelete->assemble() . ')'
         );
     }
@@ -1513,7 +1515,7 @@ class Product extends Import
         $connection->query(
             $connection->insertFromSelect(
                 $select,
-                $connection->getTableName('cataloginventory_stock_item'),
+                $this->entitiesHelper->getTable('cataloginventory_stock_item'),
                 array_keys($values),
                 AdapterInterface::INSERT_IGNORE
             )
@@ -1533,13 +1535,13 @@ class Product extends Import
         /** @var string $tmpTable */
         $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
         /** @var string $entitiesTable */
-        $entitiesTable = $connection->getTableName('pimgento_entities');
+        $entitiesTable = $this->entitiesHelper->getTable('pimgento_entities');
         /** @var string $productsTable */
-        $productsTable = $connection->getTableName('catalog_product_entity');
+        $productsTable = $this->entitiesHelper->getTable('catalog_product_entity');
         /** @var string $linkTable */
-        $linkTable = $connection->getTableName('catalog_product_link');
+        $linkTable = $this->entitiesHelper->getTable('catalog_product_link');
         /** @var string $linkAttributeTable */
-        $linkAttributeTable = $connection->getTableName('catalog_product_link_attribute');
+        $linkAttributeTable = $this->entitiesHelper->getTable('catalog_product_link_attribute');
         /** @var array $related */
         $related = [];
 
@@ -1615,7 +1617,7 @@ class Product extends Import
                 $connection->query(
                     $connection->insertFromSelect(
                         $select,
-                        $connection->getTableName('catalog_product_link_attribute_int'),
+                        $this->entitiesHelper->getTable('catalog_product_link_attribute_int'),
                         ['product_link_attribute_id', 'link_id', 'value'],
                         AdapterInterface::INSERT_ON_DUPLICATE
                     )
@@ -1633,6 +1635,15 @@ class Product extends Import
      */
     public function setUrlRewrite()
     {
+        if (!$this->configHelper->isUrlGenerationEnabled()) {
+            $this->setStatus(false);
+            $this->setMessage(
+                __('Url rewrite generation is not enabled')
+            );
+
+            return;
+        }
+
         /** @var AdapterInterface $connection */
         $connection = $this->entitiesHelper->getConnection();
         /** @var string $tableName */
@@ -1642,13 +1653,15 @@ class Product extends Import
             $this->storeHelper->getStores(['lang']), // en_US
             $this->storeHelper->getStores(['lang', 'channel_code']) // en_US-channel
         );
+        /** @var bool $isUrlKeyMapped */
+        $isUrlKeyMapped = $this->configHelper->isUrlKeyMapped();
 
         /**
          * @var string $local
          * @var array $affected
          */
         foreach ($stores as $local => $affected) {
-            if (!$connection->tableColumnExists($tmpTable, 'url_key-' . $local)) {
+            if (!$isUrlKeyMapped && !$connection->tableColumnExists($tmpTable, 'url_key-' . $local)) {
                 $connection->addColumn(
                     $tmpTable,
                     'url_key-' . $local,
@@ -1707,7 +1720,7 @@ class Product extends Import
                     /** @var string|null $exists */
                     $exists = $connection->fetchOne(
                         $connection->select()
-                            ->from($connection->getTableName('url_rewrite'), new Expr(1))
+                            ->from($this->entitiesHelper->getTable('url_rewrite'), new Expr(1))
                             ->where('entity_type = ?', ProductUrlRewriteGenerator::ENTITY_TYPE)
                             ->where('request_path = ?', $requestPath)
                             ->where('store_id = ?', $product->getStoreId())
@@ -1752,8 +1765,7 @@ class Product extends Import
                             );
                             $paths[$requestPath] = [
                                 'request_path' => $requestPath,
-                                'target_path' => 'catalog/product/view/id/' . $product->getEntityId() .
-                                    '/category/' . $category->getId(),
+                                'target_path'  => 'catalog/product/view/id/' . $product->getEntityId() . '/category/' . $category->getId(),
                                 'metadata'     => '{"category_id":"' . $category->getId() . '"}',
                                 'category_id'  => $category->getId(),
                             ];
@@ -1770,8 +1782,7 @@ class Product extends Import
                                 }
                                 $paths[$requestPath] = [
                                     'request_path' => $requestPath,
-                                    'target_path' => 'catalog/product/view/id/' . $product->getEntityId() .
-                                        '/category/' . $parent->getId(),
+                                    'target_path'  => 'catalog/product/view/id/' . $product->getEntityId() . '/category/' . $parent->getId(),
                                     'metadata'     => '{"category_id":"' . $parent->getId() . '"}',
                                     'category_id'  => $parent->getId(),
                                 ];
@@ -1793,7 +1804,7 @@ class Product extends Import
                         /** @var string|null $rewriteId */
                         $rewriteId = $connection->fetchOne(
                             $connection->select()
-                                ->from($connection->getTableName('url_rewrite'), ['url_rewrite_id'])
+                                ->from($this->entitiesHelper->getTable('url_rewrite'), ['url_rewrite_id'])
                                 ->where('entity_type = ?', ProductUrlRewriteGenerator::ENTITY_TYPE)
                                 ->where('target_path = ?', $targetPath)
                                 ->where('entity_id = ?', $product->getEntityId())
@@ -1802,7 +1813,7 @@ class Product extends Import
 
                         if ($rewriteId) {
                             $connection->update(
-                                $connection->getTableName('url_rewrite'),
+                                $this->entitiesHelper->getTable('url_rewrite'),
                                 ['request_path' => $requestPath, 'metadata' => $metadata],
                                 ['url_rewrite_id = ?' => $rewriteId]
                             );
@@ -1820,7 +1831,7 @@ class Product extends Import
                             ];
 
                             $connection->insertOnDuplicate(
-                                $connection->getTableName('url_rewrite'),
+                                $this->entitiesHelper->getTable('url_rewrite'),
                                 $data,
                                 array_keys($data)
                             );
@@ -1829,7 +1840,7 @@ class Product extends Import
                                 /** @var int $rewriteId */
                                 $rewriteId = $connection->fetchOne(
                                     $connection->select()
-                                        ->from($connection->getTableName('url_rewrite'), ['url_rewrite_id'])
+                                        ->from($this->entitiesHelper->getTable('url_rewrite'), ['url_rewrite_id'])
                                         ->where('entity_type = ?', ProductUrlRewriteGenerator::ENTITY_TYPE)
                                         ->where('target_path = ?', $targetPath)
                                         ->where('entity_id = ?', $product->getEntityId())
@@ -1845,11 +1856,11 @@ class Product extends Import
                                 'product_id'     => $product->getEntityId()
                             ];
                             $connection->delete(
-                                $connection->getTableName('catalog_url_rewrite_product_category'),
+                                $this->entitiesHelper->getTable('catalog_url_rewrite_product_category'),
                                 ['url_rewrite_id = ?' => $rewriteId]
                             );
                             $connection->insertOnDuplicate(
-                                $connection->getTableName('catalog_url_rewrite_product_category'),
+                                $this->entitiesHelper->getTable('catalog_url_rewrite_product_category'),
                                 $data,
                                 array_keys($data)
                             );
@@ -1890,7 +1901,7 @@ class Product extends Import
         }
 
         /** @var string $table */
-        $table = $connection->getTableName('catalog_product_entity');
+        $table = $this->entitiesHelper->getTable('catalog_product_entity');
         /** @var string $columnIdentifier */
         $columnIdentifier = $this->entitiesHelper->getColumnIdentifier($table);
 
@@ -1916,11 +1927,11 @@ class Product extends Import
         /** @var \Magento\Catalog\Model\ResourceModel\Eav\Attribute $galleryAttribute */
         $galleryAttribute = $this->configHelper->getAttribute(ProductModel::ENTITY, 'media_gallery');
         /** @var string $galleryTable */
-        $galleryTable = $connection->getTableName('catalog_product_entity_media_gallery');
+        $galleryTable = $this->entitiesHelper->getTable('catalog_product_entity_media_gallery');
         /** @var string $galleryEntityTable */
-        $galleryEntityTable = $connection->getTableName('catalog_product_entity_media_gallery_value_to_entity');
+        $galleryEntityTable = $this->entitiesHelper->getTable('catalog_product_entity_media_gallery_value_to_entity');
         /** @var string $productImageTable */
-        $productImageTable = $connection->getTableName('catalog_product_entity_varchar');
+        $productImageTable = $this->entitiesHelper->getTable('catalog_product_entity_varchar');
 
         /** @var array $row */
         while (($row = $query->fetch())) {
@@ -1951,8 +1962,8 @@ class Product extends Import
                 /** @var int $valueId */
                 $valueId = $connection->fetchOne(
                     $connection->select()
-                        ->from($galleryTable, ['value_id'])
-                        ->where('value = ?', $file)
+                    ->from($galleryTable, ['value_id'])
+                    ->where('value = ?', $file)
                 );
 
                 if (!$valueId) {
@@ -2052,7 +2063,7 @@ class Product extends Import
         }
 
         /** @var string $table */
-        $table = $connection->getTableName('catalog_product_entity');
+        $table = $this->entitiesHelper->getTable('catalog_product_entity');
         /** @var string $columnIdentifier */
         $columnIdentifier = $this->entitiesHelper->getColumnIdentifier($table);
 
@@ -2078,13 +2089,13 @@ class Product extends Import
         /** @var \Magento\Catalog\Model\ResourceModel\Eav\Attribute $galleryAttribute */
         $galleryAttribute = $this->configHelper->getAttribute(ProductModel::ENTITY, 'media_gallery');
         /** @var string $galleryTable */
-        $galleryTable = $connection->getTableName('catalog_product_entity_media_gallery');
+        $galleryTable = $this->entitiesHelper->getTable('catalog_product_entity_media_gallery');
         /** @var string $galleryEntityTable */
-        $galleryEntityTable = $connection->getTableName('catalog_product_entity_media_gallery_value_to_entity');
+        $galleryEntityTable = $this->entitiesHelper->getTable('catalog_product_entity_media_gallery_value_to_entity');
         /** @var string $galleryValueTable */
-        $galleryValueTable = $connection->getTableName('catalog_product_entity_media_gallery_value');
+        $galleryValueTable = $this->entitiesHelper->getTable('catalog_product_entity_media_gallery_value');
         /** @var string $productImageTable */
-        $productImageTable = $connection->getTableName('catalog_product_entity_varchar');
+        $productImageTable = $this->entitiesHelper->getTable('catalog_product_entity_varchar');
 
         /** @var array $row */
         while (($row = $query->fetch())) {

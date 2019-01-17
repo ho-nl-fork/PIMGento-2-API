@@ -127,7 +127,7 @@ class FamilyVariant extends Import
     public function createTable()
     {
         /** @var PageInterface $families */
-        $families = $this->akeneoClient->getFamilyApi()->all(); // Querying the Family API all over again.
+        $families = $this->akeneoClient->getFamilyApi()->all();
         /** @var bool $hasVariant */
         $hasVariant = false;
         /** @var array $family */
@@ -147,7 +147,7 @@ class FamilyVariant extends Import
             return;
         }
         /** @var array $variantFamily */
-        $variantFamily = $variantFamilies->getItems(); // Grabbing the last item of $variantFamilies, as a sample.
+        $variantFamily = $variantFamilies->getItems();
         if (empty($variantFamily)) {
             $this->setMessage(__('No results retrieved from Akeneo'));
             $this->stop(1);
@@ -156,7 +156,6 @@ class FamilyVariant extends Import
         }
         $variantFamily = reset($variantFamily);
         $this->entitiesHelper->createTmpTableFromApi($variantFamily, $this->getCode());
-        // Created table: tmp_pimgento_entities_family_variant
     }
 
     /**
@@ -420,7 +419,7 @@ class FamilyVariant extends Import
         );
 
         $connection->query(
-            $connection->updateFromSelect($query, ['p' => $connection->getTableName('pimgento_product_model')])
+            $connection->updateFromSelect($query, ['p' => $this->entitiesHelper->getTable('pimgento_product_model')])
         );
     }
 

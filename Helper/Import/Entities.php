@@ -8,7 +8,9 @@ use Magento\Framework\App\ResourceConnection;
 use Magento\Framework\DB\Ddl\Table;
 use Magento\Framework\DB\Select;
 use Magento\Framework\DB\Adapter\AdapterInterface;
+use Magento\Framework\App\DeploymentConfig;
 use Magento\Eav\Api\Data\AttributeInterface;
+use Magento\Framework\Config\ConfigOptionsListConstants;
 use Zend_Db_Expr as Expr;
 use Akeneo\Pim\ApiClient\Pagination\ResourceCursorInterface;
 
@@ -43,20 +45,31 @@ class Entities extends AbstractHelper
      * @var ResourceConnection $connection
      */
     protected $connection;
+    /**
+     * @var DeploymentConfig $deploymentConfig
+     */
+    private $deploymentConfig;
+    /**
+     * @var string
+     */
+    protected $tablePrefix;
 
     /**
      * Entities constructor
      *
      * @param Context $context
      * @param ResourceConnection $connection
+     * @param DeploymentConfig $deploymentConfig
      */
     public function __construct(
         Context $context,
-        ResourceConnection $connection
+        ResourceConnection $connection,
+        DeploymentConfig $deploymentConfig
     ) {
         parent::__construct($context);
 
         $this->connection = $connection->getConnection();
+        $this->deploymentConfig = $deploymentConfig;
     }
 
     /**
@@ -88,7 +101,34 @@ class Entities extends AbstractHelper
             $fragments[] = $tableSuffix;
         }
 
-        return $this->connection->getTableName(join('_', $fragments));
+        return $this->getTable(join('_', $fragments));
+    }
+
+    /**
+     * Retrieve table name with prefix
+     *
+     * @param string $tableName
+     *
+     * @return string
+     */
+    public function getTable($tableName)
+    {
+        return $this->getTablePrefix() . $this->connection->getTableName($tableName);
+    }
+
+    /**
+     * Get table prefix
+     *
+     * @return string
+     */
+    private function getTablePrefix()
+    {
+        if (null === $this->tablePrefix) {
+            $this->tablePrefix = (string)$this->deploymentConfig->get(
+                ConfigOptionsListConstants::CONFIG_PATH_DB_PREFIX
+            );
+        }
+        return $this->tablePrefix;
     }
 
     /**
@@ -295,9 +335,9 @@ class Entities extends AbstractHelper
 
         $connection->delete($tableName, [$pimKey . ' = ?' => '']);
         /** @var string $pimgentoTable */
-        $pimgentoTable = $connection->getTableName('pimgento_entities');
+        $pimgentoTable = $this->getTable('pimgento_entities');
         /** @var string $entityTable */
-        $entityTable = $connection->getTableName($entityTable);
+        $entityTable = $this->getTable($entityTable);
 
         if ($entityKey == 'entity_id') {
             $entityKey = $this->getColumnIdentifier($entityTable);
@@ -411,7 +451,7 @@ class Entities extends AbstractHelper
             /** @var string $backendType */
             $backendType = $attribute[AttributeInterface::BACKEND_TYPE];
             /** @var string $identifier */
-            $identifier = $this->getColumnIdentifier($entityTable . '_' . $backendType);
+            $identifier = $this->getColumnIdentifier($this->getTable($entityTable . '_' . $backendType));
             /** @var string $columnName */
             $columnName = $value;
             /** @var bool $columnExists */
@@ -436,7 +476,7 @@ class Entities extends AbstractHelper
             /** @var string $insert */
             $insert = $connection->insertFromSelect(
                 $select,
-                $connection->getTableName($entityTable . '_' . $backendType),
+                $this->getTable($entityTable . '_' . $backendType),
                 ['attribute_id', 'store_id', $identifier, 'value'],
                 $mode
             );
@@ -450,7 +490,7 @@ class Entities extends AbstractHelper
                     'value = ?' => '0000-00-00 00:00:00'
                 ];
                 $connection->update(
-                    $connection->getTableName($entityTable . '_' . $backendType), $values, $where
+                    $this->getTable($entityTable . '_' . $backendType), $values, $where
                 );
             }
         }
@@ -475,7 +515,7 @@ class Entities extends AbstractHelper
         $attribute = $connection->fetchRow(
             $connection->select()
                 ->from(
-                    $connection->getTableName('eav_attribute'),
+                    $this->getTable('eav_attribute'),
                     [
                         AttributeInterface::ATTRIBUTE_ID,
                         AttributeInterface::BACKEND_TYPE
@@ -525,7 +565,7 @@ class Entities extends AbstractHelper
         $connection = $this->getConnection();
 
         if ($connection->tableColumnExists($tableName, $source)) {
-            $connection->addColumn($tableName, $target, 'TEXT');
+            $connection->addColumn($tableName, $target, 'text');
             $connection->update(
                 $tableName, array($target => new Expr('`' . $source . '`'))
             );
@@ -548,7 +588,7 @@ class Entities extends AbstractHelper
         $connection = $this->getConnection();
 
         /** @var string $pimTable */
-        $pimTable = $connection->getTableName('pimgento_entities');
+        $pimTable = $this->getTable('pimgento_entities');
 
         /** @var array $data */
         $data = [

@@ -133,7 +133,7 @@ class Product extends Entities
                     continue;
                 }
                 // Attribute is a multiselect
-                if (!is_array($attributeValue['data'][0]) || !array_key_exists('amount', $attributeValue['data'][0])) {
+                if (isset($attributeValue['data'][0]) && (!is_array($attributeValue['data'][0]) || !array_key_exists('amount', $attributeValue['data'][0]))) {
                     $columns[$key] = join(',', $attributeValue['data']);
 
                     continue;

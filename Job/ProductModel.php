@@ -49,6 +49,19 @@ class ProductModel extends Import
      */
     protected $entitiesHelper;
     /**
+     * This variable contains a ConfigHelper
+     *
+     * @var ConfigHelper $configHelper
+     */
+    protected $configHelper;
+    /**
+     * This variable contains a Config
+     *
+     * @var Config $eavConfig
+     */
+    protected $eavConfig;
+
+    /**
      * ProductModel constructor
      *
      * @param OutputHelper                        $outputHelper
@@ -76,18 +89,6 @@ class ProductModel extends Import
         $this->configHelper    = $configHelper;
         $this->eavConfig       = $eavConfig;
     }
-    /**
-     * This variable contains a ConfigHelper
-     *
-     * @var ConfigHelper $configHelper
-     */
-    protected $configHelper;
-    /**
-     * This variable contains a Config
-     *
-     * @var Config $eavConfig
-     */
-    protected $eavConfig;
 
     /**
      * Create temporary table
@@ -146,7 +147,7 @@ class ProductModel extends Import
         /** @var array $except */
         $except = ['code', 'axis'];
         /** @var string $variantTable */
-        $variantTable = $connection->getTableName('pimgento_product_model');
+        $variantTable = $this->entitiesHelper->getTable('pimgento_product_model');
         /** @var array $columns */
         $columns = array_keys($connection->describeTable($variantTable));
         /** @var string $column */
@@ -171,8 +172,8 @@ class ProductModel extends Import
         $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
         /** @var array $except */
         $except = ['code', 'axis', 'type', '_entity_id', '_is_new'];
-        /** @var array $variantTable */
-        $variantTable = $connection->getTableName('pimgento_product_model');
+        /** @var string $variantTable */
+        $variantTable = $this->entitiesHelper->getTable('pimgento_product_model');
         /** @var array $columns */
         $columns = array_keys($connection->describeTable($tmpTable));
         /** @var string $column */
@@ -203,8 +204,8 @@ class ProductModel extends Import
         $connection = $this->entitiesHelper->getConnection();
         /** @var array $tmpTable */
         $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
-        /** @var array $variantTable */
-        $variantTable = $connection->getTableName('pimgento_product_model');
+        /** @var string $variantTable */
+        $variantTable = $this->entitiesHelper->getTable('pimgento_product_model');
         /** @var array $variant */
         $variant = $connection->query(
             $connection->select()->from($tmpTable)
@@ -214,7 +215,7 @@ class ProductModel extends Import
         // listing variation axes.
         $attributes = $connection->fetchPairs(
             $connection->select()->from(
-                $connection->getTableName('eav_attribute'),
+                $this->entitiesHelper->getTable('eav_attribute'),
                 ['attribute_code', 'attribute_id']
             )->where('entity_type_id = ?', $this->getEntityTypeId())
         );
