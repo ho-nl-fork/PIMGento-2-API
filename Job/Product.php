@@ -478,6 +478,10 @@ class Product extends Import
     {
         /** @var string $productTmpTable */
         $productTmpTable = $this->entitiesHelper->getTableName($this->getCode());
+        /** @var string $configurableTmpTable */
+        $configurableTmpTable = $this->entitiesHelper->getTableName($this->configurableTmpTableSuffix);
+        /** @var array $tmpTables */
+        $tmpTables = [$productTmpTable, $configurableTmpTable];
 
         /** @var string|array $matches */
         $matches = $this->scopeConfig->getValue(ConfigHelper::PRODUCT_ATTRIBUTE_MAPPING_SIMPLE);
@@ -496,7 +500,9 @@ class Product extends Import
             $pimAttribute = $match['pim_attribute'];
             /** @var string $magentoAttribute */
             $magentoAttribute = $match['magento_attribute'];
-            $this->entitiesHelper->copyColumn($productTmpTable, $pimAttribute, $magentoAttribute);
+            foreach ($tmpTables as $tmpTable) {
+                $this->entitiesHelper->copyColumn($tmpTable, $pimAttribute, $magentoAttribute);
+            }
         }
     }
 
