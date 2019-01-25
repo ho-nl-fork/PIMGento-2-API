@@ -53,6 +53,7 @@ class Config extends AbstractHelper
     const PRODUCTS_FILTERS_ADVANCED_FILTER = 'pimgento/products_filters/advanced_filter';
     const PRODUCT_ATTRIBUTE_MAPPING_SIMPLE = 'pimgento/product/attribute_mapping_simple';
     const PRODUCT_ATTRIBUTE_MAPPING_CONFIGURABLE = 'pimgento/product/attribute_mapping_configurable';
+    const ENABLE_CONFIGURABLE_IN_STORE = 'pimgento/product/enable_configurables_in_store';
     const PRODUCT_CONFIGURABLE_ATTRIBUTES = 'pimgento/product/configurable_attributes';
     const PRODUCT_TAX_CLASS = 'pimgento/product/tax_class';
     const PRODUCT_URL_GENERATION_ENABLED = 'pimgento/product/url_generation_enabled';

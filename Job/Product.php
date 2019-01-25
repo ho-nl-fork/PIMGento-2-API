@@ -478,6 +478,10 @@ class Product extends Import
     {
         /** @var string $productTmpTable */
         $productTmpTable = $this->entitiesHelper->getTableName($this->getCode());
+        /** @var string $configurableTmpTable */
+        $configurableTmpTable = $this->entitiesHelper->getTableName($this->configurableTmpTableSuffix);
+        /** @var array $tmpTables */
+        $tmpTables = [$productTmpTable, $configurableTmpTable];
 
         /** @var string|array $matches */
         $matches = $this->scopeConfig->getValue(ConfigHelper::PRODUCT_ATTRIBUTE_MAPPING_SIMPLE);
@@ -496,7 +500,9 @@ class Product extends Import
             $pimAttribute = $match['pim_attribute'];
             /** @var string $magentoAttribute */
             $magentoAttribute = $match['magento_attribute'];
-            $this->entitiesHelper->copyColumn($productTmpTable, $pimAttribute, $magentoAttribute);
+            foreach ($tmpTables as $tmpTable) {
+                $this->entitiesHelper->copyColumn($tmpTable, $pimAttribute, $magentoAttribute);
+            }
         }
     }
 
@@ -542,11 +548,15 @@ class Product extends Import
             );
         }
 
+        $statusForConfigurables = $this->scopeConfig->getValue(ConfigHelper::ENABLE_CONFIGURABLE_IN_STORE) ? 1 : 2;
+
         /** @var array $data */
         $data = [
             'identifier'         => 'e.' . $groupColumn,
             '_children'          => new Expr('GROUP_CONCAT(e.identifier SEPARATOR ",")'),
             '_axis'              => 'v.axis',
+            '_type_id'           => new Expr('"configurable"'),
+            '_status'            => new Expr('"' . $statusForConfigurables . '"'),
         ];
         if ($this->configHelper->isUrlGenerationEnabled()) {
             $data['url_key'] = 'e.' . $groupColumn;
@@ -711,6 +721,8 @@ class Product extends Import
         /** @var string $productTmpTable */
         $productTmpTable = $this->entitiesHelper->getTableName($this->getCode());
 
+        $statusForConfigurables = $this->scopeConfig->getValue(ConfigHelper::ENABLE_CONFIGURABLE_IN_STORE) ? 1 : 2;
+
         /** @var array $data */
         $data = [
             'identifier'         => 'v.parent',
@@ -719,6 +731,7 @@ class Product extends Import
             '_type_id'           => new Expr('"configurable"'),
             '_options_container' => new Expr('"container1"'),
             '_axis'              => 'v.axis',
+            '_status'            => new Expr('"' . $statusForConfigurables . '"'),
         ];
 
         $topLevelConfigurableRelevantColumn = $this->identifyRelevantColumnsForTopLevelConfigurables();
