@@ -83,6 +83,10 @@ class FamilyVariant extends Import
      */
     protected $attributeJob;
 
+    /**
+     * @var Family
+     */
+    private $familyJob;
 
     /**
      * FamilyVariant constructor
@@ -108,6 +112,7 @@ class FamilyVariant extends Import
         TypeListInterface $cacheTypeList,
         Config $eavConfig,
         Attribute $attributeJob,
+        Family $familyJob,
         array $data = []
     ) {
         parent::__construct($outputHelper, $eventManager, $authenticator, $logger, $data);
@@ -117,6 +122,7 @@ class FamilyVariant extends Import
         $this->cacheTypeList  = $cacheTypeList;
         $this->eavConfig      = $eavConfig;
         $this->attributeJob   = $attributeJob;
+        $this->familyJob = $familyJob;
     }
 
     /**
@@ -302,6 +308,9 @@ class FamilyVariant extends Import
             // so that the forked attributes are properly imported.
             // Kicking off with "matchEntities()" step, since the table is already created and populated.
             $this->attributeJob->runFromStep(3);
+
+            // Recreate the relations between attributes and add them to the correct attribute group.
+            $this->familyJob->runFromStep(1);
 
             // In the _axis_codes column of the tmp table, replace the codes of attributes
             // that have been superseded by their "forked" equivalents.
