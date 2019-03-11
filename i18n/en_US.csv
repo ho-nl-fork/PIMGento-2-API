@@ -1,7 +1,8 @@
 "%1 Import already running","%1 Import already running"
 "%1 Import code not found","%1 Import code not found"
 "%1 Start import","%1 Start import"
-"--code","--code",
+"--code","--code"
+"Admin Website Channel","Admin Website Channel"
 "Akeneo API client ID","Akeneo API client ID"
 "Akeneo API client secret","Akeneo API client secret"
 "Akeneo API Configuration","Akeneo API Configuration"
@@ -96,6 +97,7 @@ For example :<br/>
 "Select the channel to apply the completeness filter on","Select the channel to apply the completeness filter on"
 "Select the families you don't want to retrieve products from.<br/> If the multiselect is empty, it means you don't have any families in your Akeneo, or the provided credentials are wrong.","Select the families you don't want to retrieve products from.<br/> If the multiselect is empty, it means you don't have any families in your Akeneo, or the provided credentials are wrong."
 "Select the locales to apply the completeness filter on","Select the locales to apply the completeness filter on"
+"Set Magento Admin website default Pim channel","Set Magento Admin website default Pim channel"
 "Start import","Start import"
 "Status","Status"
 "Test API credentials","Test API credentials"

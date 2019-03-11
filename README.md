@@ -4,9 +4,9 @@
 
 PIMGento2 (API) is a Magento 2 extension that allows you to import your catalog from Akeneo API into Magento.
 
-You can discover PIMGento2 (API) on the official website (https://www.pimgento.com/).
+You can discover PIMGento2 (API) on the [official website](https://www.pimgento.com/).
 
-> The first version of the PIMGento2 connector will not be maintained anymore by the end of 2018 (https://github.com/Agence-DnD/PIMGento-2).
+> The [first version](https://github.com/Agence-DnD/PIMGento-2) of the PIMGento2 connector will not be maintained anymore by the end of 2018.
 
 ### Documentation
 
@@ -46,4 +46,4 @@ You can consult our roadmap [here](doc/important_stuff/roadmap.md).
 
 ### About us
 
-Founded by lovers of innovation and design, [Agence Dn'D] (https://www.dnd.fr) assists companies for 11 years in the creation and development of customized digital (open source) solutions for web and E-commerce.
+Founded by lovers of innovation and design, [Agence Dn'D](https://www.dnd.fr) assists companies in the creation and development of customized digital (open source) solutions for web and E-commerce since 2004.

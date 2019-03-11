@@ -38,6 +38,12 @@ class Entities extends AbstractHelper
      * @var array EXCLUDED_COLUMNS
      */
     const EXCLUDED_COLUMNS = ['_links'];
+    /**
+     * Pimgento product import code
+     *
+     * @var string IMPORT_CODE_PRODUCT
+     */
+    const IMPORT_CODE_PRODUCT = 'product';
 
     /**
      * This variable contains a ResourceConnection
@@ -53,6 +59,20 @@ class Entities extends AbstractHelper
      * @var string
      */
     protected $tablePrefix;
+    /**
+     * Product attributes to pass if empty value
+     *
+     * @var string[] $passIfEmpty
+     */
+    protected $passIfEmpty = [
+        'price',
+    ];
+    /**
+     * Mapped catalog attributes with relative scope
+     *
+     * @var string[] $attributeScopeMapping
+     */
+    protected $attributeScopeMapping = [];
 
     /**
      * Entities constructor
@@ -426,7 +446,7 @@ class Entities extends AbstractHelper
         /** @var \Magento\Framework\DB\Adapter\AdapterInterface $connection */
         $connection = $this->getConnection();
         /** @var string $tableName */
-        $tableName  = $this->getTableName($import);
+        $tableName = $this->getTableName($import);
 
         /**
          * @var string $code
@@ -436,7 +456,7 @@ class Entities extends AbstractHelper
             /** @var array|bool $attribute */
             $attribute = $this->getAttribute($code, $entityTypeId);
 
-            if (!$attribute) {
+            if (empty($attribute)) {
                 continue;
             }
 
@@ -452,26 +472,23 @@ class Entities extends AbstractHelper
             $backendType = $attribute[AttributeInterface::BACKEND_TYPE];
             /** @var string $identifier */
             $identifier = $this->getColumnIdentifier($this->getTable($entityTable . '_' . $backendType));
-            /** @var string $columnName */
-            $columnName = $value;
-            /** @var bool $columnExists */
-            $columnExists = $connection->tableColumnExists($tableName, $value);
-
-            if ($columnExists) {
-                $value = new Expr('IF(`' . $value . '` <> "", `' . $value . '`, NULL)');
-            }
 
             /** @var \Magento\Framework\DB\Select $select */
-            $select = $connection->select()
-                ->from(
-                    $tableName,
-                    [
-                        'attribute_id'   => new Expr($attribute[AttributeInterface::ATTRIBUTE_ID]),
-                        'store_id'       => new Expr($storeId),
-                        $identifier      => '_entity_id',
-                        'value'          => $value,
-                    ]
-                );
+            $select = $connection->select()->from(
+                $tableName,
+                [
+                    'attribute_id' => new Expr($attribute[AttributeInterface::ATTRIBUTE_ID]),
+                    'store_id'     => new Expr($storeId),
+                    $identifier    => '_entity_id',
+                    'value'        => $value,
+                ]
+            );
+
+            /** @var bool $columnExists */
+            $columnExists = $connection->tableColumnExists($tableName, $value);
+            if ($columnExists && ($import !== self::IMPORT_CODE_PRODUCT || in_array($code, $this->passIfEmpty))) {
+                $select->where(sprintf('TRIM(`%s`) > ?', $value), new Expr('""'));
+            }
 
             /** @var string $insert */
             $insert = $connection->insertFromSelect(
@@ -487,10 +504,12 @@ class Entities extends AbstractHelper
                     'value' => new Expr('NULL'),
                 ];
                 $where = [
-                    'value = ?' => '0000-00-00 00:00:00'
+                    'value = ?' => '0000-00-00 00:00:00',
                 ];
                 $connection->update(
-                    $this->getTable($entityTable . '_' . $backendType), $values, $where
+                    $this->getTable($entityTable . '_' . $backendType),
+                    $values,
+                    $where
                 );
             }
         }
@@ -531,6 +550,35 @@ class Entities extends AbstractHelper
         }
 
         return $attribute;
+    }
+
+    /**
+     * Retrieve catalog attributes mapped with relative scope
+     *
+     * @return string[]
+     */
+    public function getAttributeScopeMapping()
+    {
+        if (!empty($this->attributeScopeMapping)) {
+            return $this->attributeScopeMapping;
+        }
+
+        /** @var \Magento\Framework\DB\Adapter\AdapterInterface $connection */
+        $connection = $this->connection;
+        /** @var string $catalogAttribute */
+        $catalogAttribute = $this->getTable('catalog_eav_attribute');
+        /** @var string $eavAttribute */
+        $eavAttribute = $this->getTable('eav_attribute');
+        /** @var Select $select */
+        $select = $connection->select()->from(['a' => $eavAttribute], ['attribute_code'])->joinInner(['c' => $catalogAttribute], 'c.attribute_id = a.attribute_id', ['is_global']);
+
+        /** @var string[] $attributeScopes */
+        $attributeScopes = $connection->fetchPairs($select);
+        if (!empty($attributeScopes)) {
+            $this->attributeScopeMapping = $attributeScopes;
+        }
+
+        return $this->attributeScopeMapping;
     }
 
     /**

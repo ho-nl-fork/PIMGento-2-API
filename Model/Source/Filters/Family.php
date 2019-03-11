@@ -25,6 +25,14 @@ class Family implements ArrayInterface
      * @var Authenticator $akeneoAuthenticator
      */
     protected $akeneoAuthenticator;
+    /** @var \Psr\Log\LoggerInterface $logger */
+    private $logger;
+    /**
+     * List of options
+     *
+     * @var string[] $options
+     */
+    protected $options = [];
 
     /**
      * Family constructor
@@ -32,51 +40,65 @@ class Family implements ArrayInterface
      * @param Authenticator $akeneoAuthenticator
      */
     public function __construct(
-        Authenticator $akeneoAuthenticator
+        Authenticator $akeneoAuthenticator,
+        \Psr\Log\LoggerInterface $logger
     ) {
         $this->akeneoAuthenticator = $akeneoAuthenticator;
+        $this->logger              = $logger;
+        $this->init();
     }
 
     /**
-     * Return array of options as value-label pairs
+     * Initialize options
      *
-     * @return array Format: array(array('value' => '<value>', 'label' => '<label>'), ...)
+     * @return void
+     */
+    public function init()
+    {
+        try {
+            /** @var AkeneoPimClientInterface $client */
+            $client = $this->akeneoAuthenticator->getAkeneoApiClient();
+
+            $this->options[''] = __('None');
+
+            if (empty($client)) {
+                return;
+            }
+
+            /** @var ResourceCursorInterface $families */
+            $families = $client->getFamilyApi()->all();
+            /** @var mixed[] $family */
+            foreach ($families as $family) {
+                if (!isset($family['code'])) {
+                    continue;
+                }
+                $this->options[$family['code']] = $family['code'];
+            }
+        } catch (\Exception $exception) {
+            $this->logger->warning($exception->getMessage());
+        }
+    }
+
+    /**
+     * Retrieve options value and label in an array
+     *
+     * @return array
      */
     public function toOptionArray()
     {
-        /** @var ResourceCursorInterface $families */
-        $families = $this->getFamilies();
-
-        $options = [];
-        foreach ($families as $family) {
-            $options[] = [
-                'label' => $family['code'],
-                'value' => $family['code'],
+        /** @var array $optionArray */
+        $optionArray = [];
+        /**
+         * @var int    $optionValue
+         * @var string $optionLabel
+         */
+        foreach ($this->options as $optionValue => $optionLabel) {
+            $optionArray[] = [
+                'value' => $optionValue,
+                'label' => $optionLabel,
             ];
         }
 
-        return $options;
-    }
-
-    /**
-     * Retrieve the families from akeneo using the configured API. If the credentials are not configured or are wrong, return an empty array
-     *
-     * @return ResourceCursorInterface|array
-     */
-    private function getFamilies()
-    {
-        try {
-            /** @var AkeneoPimClientInterface $akeneoClient */
-            $akeneoClient = $this->akeneoAuthenticator->getAkeneoApiClient();
-
-            if (!$akeneoClient) {
-                return [];
-            }
-
-            return $akeneoClient->getFamilyApi()->all();
-
-        } catch (\Exception $exception) {
-            return [];
-        }
+        return $optionArray;
     }
 }

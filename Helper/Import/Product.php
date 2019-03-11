@@ -198,7 +198,7 @@ class Product extends Entities
     private function getKey($attribute, array $attributeValue)
     {
         /** @var string $key */
-        $key = $attribute;
+        $key = strtolower($attribute);
         if (isset($attributeValue['locale']) && isset($attributeValue['scope'])) {
             $key = join('-', [$attribute, $attributeValue['locale'], $attributeValue['scope']]);
         } elseif (isset($attributeValue['locale'])) {

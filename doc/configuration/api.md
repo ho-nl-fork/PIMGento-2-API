@@ -12,4 +12,5 @@ Configuration is available in Magento 2 back-office under:
 | Akeneo API client secret      | API client secret ([Documentation](https://api.akeneo.com/documentation/security.html))|
 | Is Akeneo enterprise edition  | To switch between an EE or CE version of Akeneo                                        |
 | Pagination size               | Set pagination for all import (the default value is 10)                                |
+| Admin Website Channel         | Set the Channel from which to import Magento Admin Data                                |
 | Website Mapping               | Mapping between PIMGento2 websites and Akeneo channels                                 |

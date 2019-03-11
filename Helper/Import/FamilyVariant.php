@@ -33,14 +33,6 @@ class FamilyVariant extends Entities
             if (in_array($key, static::EXCLUDED_COLUMNS)) {
                 continue;
             }
-            if ($key == 'values') {
-                /** @var array $values */
-                $values = $this->formatValues($value);
-                /** @var array $columns */
-                $columns = array_merge($columns, $values);
-
-                continue;
-            }
             $columns[$key] = $value;
 
             if (!is_array($value)) {

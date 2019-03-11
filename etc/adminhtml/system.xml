@@ -28,6 +28,7 @@
                        showInWebsite="0" showInStore="0">
                     <label>Akeneo username</label>
                     <comment>The Akeneo user should have permissions to list</comment>
+                    <validate>no-whitespace</validate>
                 </field>
                 <field id="password" translate="label" type="obscure" sortOrder="30" showInDefault="1" showInWebsite="0"
                        showInStore="0">
@@ -37,10 +38,12 @@
                 <field id="client_id" translate="label" type="text" sortOrder="40" showInDefault="1" showInWebsite="0"
                        showInStore="0">
                     <label>Akeneo API client ID</label>
+                    <validate>no-whitespace</validate>
                 </field>
                 <field id="client_secret" translate="label" type="text" sortOrder="50" showInDefault="1"
                        showInWebsite="0" showInStore="0">
                     <label>Akeneo API client secret</label>
+                    <validate>no-whitespace</validate>
                 </field>
                 <field id="api_test" translate="label" type="button" sortOrder="60" showInDefault="1" showInWebsite="0" showInStore="0">
                     <frontend_model>Pimgento\Api\Block\Adminhtml\System\Config\Api\Test</frontend_model>
@@ -55,11 +58,17 @@
                     <label>Pagination size</label>
                     <comment>Must be a value between 1 and 100. Default value is 10.</comment>
                 </field>
-                <field id="website_mapping" translate="label" type="text" sortOrder="90" showInDefault="1" showInWebsite="0" showInStore="0">
+                <field id="admin_channel" translate="label comment" type="text" sortOrder="90" showInDefault="1" showInWebsite="0" showInStore="0">
+                    <label>Admin Website Channel</label>
+                    <comment>Set Magento Admin website default Pim channel</comment>
+                    <validate>required-entry</validate>
+                </field>
+                <field id="website_mapping" translate="label" type="text" sortOrder="91" showInDefault="1" showInWebsite="0" showInStore="0">
                     <label>Website Mapping</label>
                     <frontend_model>Pimgento\Api\Block\Adminhtml\System\Config\Form\Field\Website</frontend_model>
                     <backend_model>Magento\Config\Model\Config\Backend\Serialized\ArraySerialized</backend_model>
                     <comment>Match Magento website with Pim channel</comment>
+                    <validate>required-entry</validate>
                 </field>
             </group>
             <group id="products_filters" translate="label" type="text" sortOrder="20" showInDefault="1"

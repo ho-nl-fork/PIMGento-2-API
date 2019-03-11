@@ -22,7 +22,15 @@
                 </resource>
                 <resource id="Magento_Backend::system">
                     <resource id="Pimgento_Api::pimgento" title="Pimgento Api" sortOrder="100">
-                        <resource id="Pimgento_Api::import" title="Import API" sortOrder="10"/>
+                        <resource id="Pimgento_Api::import" title="Import API" sortOrder="10">
+                            <resource id="Pimgento_Api::import_category" title="Categories" sortOrder="10" />
+                            <resource id="Pimgento_Api::import_family" title="Families" sortOrder="20" />
+                            <resource id="Pimgento_Api::import_attribute" title="Attributes" sortOrder="30" />
+                            <resource id="Pimgento_Api::import_option" title="Options" sortOrder="40" />
+                            <resource id="Pimgento_Api::import_product_model" title="Variants" sortOrder="50" />
+                            <resource id="Pimgento_Api::import_family_variant" title="Family Variant" sortOrder="60" />
+                            <resource id="Pimgento_Api::import_product" title="Products" sortOrder="70" />
+                        </resource>
                         <resource id="Pimgento_Api::pimgento_log" title="Log" sortOrder="20" />
                     </resource>
                 </resource>

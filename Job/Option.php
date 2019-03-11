@@ -156,7 +156,11 @@ class Option extends Import
         foreach ($attributes as $attribute) {
             if ($attribute['type'] == 'pim_catalog_multiselect' || $attribute['type'] == 'pim_catalog_simpleselect') {
                 /** @var PageInterface $options */
-                $options    = $this->akeneoClient->getAttributeOptionApi()->listPerPage($attribute['code']);
+                $options = $this->akeneoClient->getAttributeOptionApi()->listPerPage($attribute['code']);
+                if (empty($options->getItems())) {
+                    continue;
+                }
+
                 $hasOptions = true;
 
                 break;

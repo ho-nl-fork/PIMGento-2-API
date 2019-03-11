@@ -30,7 +30,7 @@ class Website extends AbstractFieldArray
      *
      * @param Context $context
      * @param Factory $elementFactory
-     * @param array $data
+     * @param array   $data
      */
     public function __construct(
         Context $context,
@@ -49,9 +49,20 @@ class Website extends AbstractFieldArray
      */
     protected function _construct()
     {
-        $this->addColumn('website', ['label' => __('Website')]);
-        $this->addColumn('channel', ['label' => __('Channel')]);
-        $this->_addAfter = false;
+        $this->addColumn(
+            'website',
+            [
+                'label' => __('Website'),
+            ]
+        );
+        $this->addColumn(
+            'channel',
+            [
+                'label' => __('Channel'),
+                'class' => 'required-entry',
+            ]
+        );
+        $this->_addAfter       = false;
         $this->_addButtonLabel = __('Add');
 
         parent::_construct();
@@ -71,7 +82,7 @@ class Website extends AbstractFieldArray
         }
 
         /** @var \Magento\Store\Api\Data\WebsiteInterface[] $websites */
-        $websites = $this->_storeManager->getWebsites(true);
+        $websites = $this->_storeManager->getWebsites();
         /** @var array $options */
         $options = [];
         /** @var \Magento\Store\Api\Data\WebsiteInterface $website */

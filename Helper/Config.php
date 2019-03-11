@@ -41,6 +41,7 @@ class Config extends AbstractHelper
     const AKENEO_API_CLIENT_SECRET = 'pimgento/akeneo_api/client_secret';
     const AKENEO_API_IS_ENTERPRISE = 'pimgento/akeneo_api/is_enterprise';
     const AKENEO_API_PAGINATION_SIZE = 'pimgento/akeneo_api/pagination_size';
+    const AKENEO_API_ADMIN_CHANNEL = 'pimgento/akeneo_api/admin_channel';
     const AKENEO_API_WEBSITE_MAPPING = 'pimgento/akeneo_api/website_mapping';
     const PRODUCTS_FILTERS_MODE = 'pimgento/products_filters/mode';
     const PRODUCTS_FILTERS_COMPLETENESS_TYPE = 'pimgento/products_filters/completeness_type';
@@ -308,11 +309,35 @@ class Config extends AbstractHelper
     /**
      * Retrieve website mapping
      *
-     * @return string
+     * @return mixed[]
      */
     public function getWebsiteMapping()
     {
-        return $this->scopeConfig->getValue(self::AKENEO_API_WEBSITE_MAPPING);
+        /** @var string $adminChannel */
+        $adminChannel = $this->scopeConfig->getValue(self::AKENEO_API_ADMIN_CHANNEL);
+
+        if (empty($adminChannel)) {
+            return [];
+        }
+        /** @var mixed[] $fullMapping */
+        $fullMapping = [
+            [
+                'channel' => $adminChannel,
+                'website' => $this->storeManager->getWebsite(0)->getCode(),
+            ],
+        ];
+        /** @var string $mapping */
+        $mapping = $this->scopeConfig->getValue(self::AKENEO_API_WEBSITE_MAPPING);
+        if (empty($mapping)) {
+            return $fullMapping;
+        }
+        /** @var  $mapping */
+        $mapping = $this->serializer->unserialize($mapping);
+        if (!empty($mapping) && is_array($mapping)) {
+            $fullMapping = array_merge($fullMapping, $mapping);
+        }
+
+        return $fullMapping;
     }
 
     /**

@@ -18,8 +18,8 @@ class Status implements ArrayInterface
 {
     /** const keys */
     const STATUS_NO_CONDITION = 'no_condition';
-    const STATUS_ENABLED = true;
-    const STATUS_DISABLED = false;
+    const STATUS_ENABLED = '1';
+    const STATUS_DISABLED = '0';
 
     /**
      * Return array of options for the status filter
@@ -29,9 +29,18 @@ class Status implements ArrayInterface
     public function toOptionArray()
     {
         return [
-            self::STATUS_NO_CONDITION => __('No condition'),
-            self::STATUS_ENABLED => __('Enabled'),
-            self::STATUS_DISABLED => __('Disabled'),
+            [
+                'label' => __('No condition'),
+                'value' => self::STATUS_NO_CONDITION
+            ],
+            [
+                'label' => __('Enabled'),
+                'value' => self::STATUS_ENABLED
+            ],
+            [
+                'label' => __('Disabled'),
+                'value' => self::STATUS_DISABLED
+            ],
         ];
     }
 }
