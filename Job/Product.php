@@ -786,12 +786,26 @@ class Product extends Import
         /** @var string $productTmpTable */
         $productTmpTable = $this->entitiesHelper->getTableName($this->getCode());
 
+        /** @var array $parentData */
+        $parentData = [
+            'parent'         => 'model.parent'
+        ];
+        $parentSelect = $connection->select()
+            ->from(['model' => $productModelTable], $parentData)
+            ->where('model.parent IS NOT null');
+        $parentQuery = $connection->query($parentSelect);
+        $parentsResult = $parentQuery->fetchAll();
+        $parents = [];
+        foreach ($parentsResult as $parent) {
+            $parents[]= $parent['parent'];
+        }
+
         $statusForConfigurables = $this->scopeConfig->getValue(ConfigHelper::ENABLE_CONFIGURABLE_IN_STORE) ? 1 : 2;
 
         /** @var array $data */
         $data = [
-            'identifier'         => 'v.parent',
-            'url_key'            => 'v.parent',
+            'identifier'         => 'v.code',
+            'url_key'            => 'v.code',
             '_children'          => new Expr('GROUP_CONCAT(e._children SEPARATOR ",")'),
             '_type_id'           => new Expr('"configurable"'),
             '_options_container' => new Expr('"container1"'),
@@ -838,11 +852,65 @@ class Product extends Import
         $select = $connection->select()
             ->from(['e' => $configurableTmpTable], $data)
             ->joinInner(['v' => $productModelTable],'e.identifier = v.code', [])
-            ->where('v.parent <> ""')
-            ->group('v.parent');
+            ->where('v.parent <> "" AND v.code NOT IN (?)', $parents)
+            ->group('v.code');
 
         /** @var string $query */
         $query = $connection->insertFromSelect($select, $productTmpTable, array_keys($data));
+        $connection->query($query);
+
+        $this->updateFirstAxis();
+    }
+
+    private function updateFirstAxis() {
+
+        /** @var AdapterInterface $connection */
+        $connection = $this->entitiesHelper->getConnection();
+        /** @var string $productTmpTable */
+        $configurableTmpTable = $this->entitiesHelper->getTableName($this->configurableTmpTableSuffix);
+        /** @var string $productTmpTable */
+        $productTmpTable = $this->entitiesHelper->getTableName($this->getCode());
+
+        /** @var array $data */
+        $data = [
+            'identifier'         => 'e.identifier'
+        ];
+
+        $columns = $connection->describeTable($configurableTmpTable);
+
+
+        /** @var array $data */
+        foreach ($columns as $column) {
+            $columnName = $column['COLUMN_NAME'];
+            if ($columnName === 'identifier'
+                || $columnName === 'created'
+                || $columnName === 'updated'
+                || $columnName === '_entity_id'
+                || $columnName === '_axis'
+                || $columnName === '_is_new'
+                || $columnName === '_options_container'
+                || $columnName === '_tax_class_id'
+                || $columnName === '_attribute_set_id'
+                || $columnName === '_visibility'
+                || $columnName === '_status'
+                || $columnName === '_url_key'
+                || $columnName === '_children'
+                || $columnName === 'groups'
+                || $columnName === 'parent'
+                || $columnName === 'family'
+                || $columnName === 'categories'
+                || $columnName === 'enabled'
+                || $columnName === '_type_id') {
+                continue;
+            }
+            $data [$columnName] = new Expr('IFNULL(e.`' . $columnName .'`, configurable.`' . $columnName .'`)');
+        }
+
+        $select = $connection->select()
+        ->from(['configurable' => $configurableTmpTable], $data)
+        ->where('e.identifier = configurable.identifier');
+
+        $query = $connection->updateFromSelect($select, ['e' => $productTmpTable]);
         $connection->query($query);
     }
 
@@ -2028,8 +2096,8 @@ class Product extends Import
                 /** @var int $valueId */
                 $valueId = $connection->fetchOne(
                     $connection->select()
-                    ->from($galleryTable, ['value_id'])
-                    ->where('value = ?', $file)
+                        ->from($galleryTable, ['value_id'])
+                        ->where('value = ?', $file)
                 );
 
                 if (!$valueId) {
