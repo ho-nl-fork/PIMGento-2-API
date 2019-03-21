@@ -394,13 +394,25 @@ class FamilyVariant extends Import
             $connection->select()->from($tmpTable)
         );
         while ($row = $variantFamily->fetch()) {
+
+            if (isset($row['variant-axes_1'], $row['variant-axes_2'])) {
+                $firstAxisCodes = explode(',', $row['variant-axes_1']);
+                foreach ($firstAxisCodes as $ignoredCode) {
+                    $ignoreAxisCodes[$ignoredCode] = true;
+                    $ignoreAxisCodes[$ignoredCode . '_fork'] = true;
+                }
+            } else {
+                $ignoreAxisCodes = [];
+            }
+
+
             /** @var array $rowCodes */
             $axisCodes = explode(',', $row['_axis_codes']);
             /** @var array $axis */
             $axis = [];
             /** @var string $code */
             foreach ($axisCodes as $code) {
-                if (isset($attributes[$code])) {
+                if (isset($attributes[$code]) && !isset($ignoreAxisCodes[$code])) {
                     $axis[] = $attributes[$code];
                 }
             }
