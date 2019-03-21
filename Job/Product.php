@@ -1323,7 +1323,7 @@ class Product extends Import
                 $data,
                 $entityTypeId,
                 $storeId,
-                AdapterInterface::INSERT_ON_DUPLICATE
+                isset($data['status']) ? AdapterInterface::INSERT_IGNORE : AdapterInterface::INSERT_ON_DUPLICATE
             );
         }
     }
