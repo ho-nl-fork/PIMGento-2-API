@@ -255,9 +255,17 @@ class FamilyVariant extends Import
         );
         /** @var string $allAxisCodesStr */
         $allAxisCodesStr = '';
+        $ignoreAxisCodes = [];
         while ($row = $variantFamily->fetch()) {
             $allAxisCodesStr .= $row['_axis_codes'];
+
+            if (isset($row['variant-axes_1'], $row['variant-axes_2'])) {
+                foreach (explode(',', $row['variant-axes_1']) as $ignoreAxisCode) {
+                    $ignoreAxisCodes[$ignoreAxisCode] = true;
+                }
+            }
         }
+
         /** @var array $allAxisCodes */
         $allAxisCodesTmp = explode(',', $allAxisCodesStr);
         /** @var array $allAxisCodes */
@@ -270,7 +278,7 @@ class FamilyVariant extends Import
         $metricAttributes = [];
         $attributes = $this->akeneoClient->getAttributeApi()->all();
         foreach ($attributes as $attribute) {
-            if ($attribute['type'] === 'pim_catalog_metric') {
+            if ($attribute['type'] === 'pim_catalog_metric' && !isset($ignoreAxisCodes[$attribute['code']])) {
                 $metricAttributes[$attribute['code']] = $attribute;
             }
         }
