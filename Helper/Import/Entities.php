@@ -495,7 +495,7 @@ class Entities extends AbstractHelper
                 $select,
                 $this->getTable($entityTable . '_' . $backendType),
                 ['attribute_id', 'store_id', $identifier, 'value'],
-                $mode
+                $code === 'status' ? AdapterInterface::INSERT_IGNORE : $mode
             );
             $connection->query($insert);
 
