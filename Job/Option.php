@@ -262,7 +262,7 @@ class Option extends Import
                 $options,
                 $this->entitiesHelper->getTable('eav_attribute_option'),
                 ['option_id', 'sort_order', 'attribute_id'],
-                1
+                AdapterInterface::INSERT_IGNORE
             )
         );
     }
@@ -310,7 +310,7 @@ class Option extends Import
                         $options,
                         $this->entitiesHelper->getTable('eav_attribute_option_value'),
                         ['option_id', 'store_id', 'value'],
-                        1
+                        AdapterInterface::INSERT_IGNORE
                     )
                 );
             }
