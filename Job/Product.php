@@ -1651,6 +1651,8 @@ class Product extends Import
             'qty'                       => new Expr(0),
             'is_in_stock'               => new Expr(1),
             'low_stock_date'            => new Expr('NULL'),
+            'manage_stock'              => new Expr('IF(_type_id = "simple", 1, 0)'),
+            'use_config_manage_stock'   => new Expr('0'),
             'stock_status_changed_auto' => new Expr(0),
             'website_id'                => new Expr($websiteId),
         ];
@@ -1663,7 +1665,7 @@ class Product extends Import
                 $select,
                 $this->entitiesHelper->getTable('cataloginventory_stock_item'),
                 array_keys($values),
-                AdapterInterface::INSERT_IGNORE
+                AdapterInterface::INSERT_ON_DUPLICATE
             )
         );
     }
