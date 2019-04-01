@@ -382,16 +382,23 @@ class Product extends Import
 
                         // Separate unit from amount
                         $matches = [];
-                        preg_match('#(.*) ([^ ]+)$#U', $option, $matches);
-                        list(, $amount, $unitCode) = $matches;
+                        preg_match('#([\-+\d.,]+)( ([^ ]*))?$#U', $option, $matches);
+                        if (\sizeof($matches) >= 4) {
+                            list(, $amount, , $unitCode) = $matches;
+                        } else {
+                            $amount = $matches[1];
+                            $unitCode = null;
+                        }
 
                         // Query API for unit symbol matching the code.
                         $unitSymbol = '';
-                        foreach ($measureFamilies as $measureFamily) {
-                            foreach ($measureFamily['units'] as $apiUnit) {
-                                if ($unitCode === $apiUnit['code']) {
-                                    $unitSymbol = $apiUnit['symbol'];
-                                    break 2;
+                        if ($unitCode !== null) {
+                            foreach ($measureFamilies as $measureFamily) {
+                                foreach ($measureFamily['units'] as $apiUnit) {
+                                    if ($unitCode === $apiUnit['code']) {
+                                        $unitSymbol = $apiUnit['symbol'];
+                                        break 2;
+                                    }
                                 }
                             }
                         }
@@ -402,7 +409,7 @@ class Product extends Import
                         ];
                         // Add labels for each locale.
                         foreach ($localeSuffixes as $localeSuffix) {
-                            $data['labels-' . $localeSuffix] = $amount . ' ' . $unitSymbol;
+                            $data['labels-' . $localeSuffix] = $amount . ($unitSymbol === '' ? '' : ' ' . $unitSymbol);
                         }
                         // Write data to the Options tmp table.
                         $connection->insertOnDuplicate(
