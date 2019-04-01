@@ -477,7 +477,7 @@ class Product extends Import
             $connection->addColumn($tmpTable, '_visibility', [
                 'type' => 'integer',
                 'length' => 11,
-                'default' => Visibility::VISIBILITY_BOTH,
+                'default' => Visibility::VISIBILITY_NOT_VISIBLE,
                 'COMMENT' => ' ',
                 'nullable' => false
             ]);
