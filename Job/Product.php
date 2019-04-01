@@ -1642,7 +1642,7 @@ class Product extends Import
             'product_id'                => '_entity_id',
             'stock_id'                  => new Expr(1),
             'qty'                       => new Expr(0),
-            'is_in_stock'               => new Expr(0),
+            'is_in_stock'               => new Expr(1),
             'low_stock_date'            => new Expr('NULL'),
             'stock_status_changed_auto' => new Expr(0),
             'website_id'                => new Expr($websiteId),
