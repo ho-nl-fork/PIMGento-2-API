@@ -1666,7 +1666,7 @@ class Product extends Import
                 $select,
                 $this->entitiesHelper->getTable('cataloginventory_stock_item'),
                 array_keys($values),
-                AdapterInterface::INSERT_ON_DUPLICATE
+                AdapterInterface::INSERT_IGNORE
             )
         );
     }
