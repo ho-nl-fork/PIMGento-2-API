@@ -406,6 +406,7 @@ class Product extends Import
                         $data = [
                             'code'          => $option,
                             'attribute'     => $forkedCode,
+                            'sort_order'    => $amount * 1000 + 25000
                         ];
                         // Add labels for each locale.
                         foreach ($localeSuffixes as $localeSuffix) {
