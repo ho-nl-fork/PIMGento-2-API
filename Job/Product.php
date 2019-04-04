@@ -614,10 +614,8 @@ class Product extends Import
             '_axis'              => 'v.axis',
             '_type_id'           => new Expr('"configurable"'),
             '_status'            => new Expr('"' . $statusForConfigurables . '"'),
+            'url_key'           => new Expr('CONCAT(e.' . $groupColumn .', "_configurable")'),
         ];
-        if ($this->configHelper->isUrlGenerationEnabled()) {
-            $data['url_key'] = 'e.' . $groupColumn;
-        }
 
         // Fetch all usable data from the variant table (pimgento_product_model)
         // to inject it into the low-level configurable tmp table.
@@ -813,7 +811,7 @@ class Product extends Import
         /** @var array $data */
         $data = [
             'identifier'         => 'v.code',
-            'url_key'            => 'v.code',
+            'url_key'            => new Expr('CONCAT(v.code, "_configurable")'),
             '_children'          => new Expr('GROUP_CONCAT(e._children SEPARATOR ",")'),
             '_type_id'           => new Expr('"configurable"'),
             '_options_container' => new Expr('"container1"'),
@@ -1837,7 +1835,8 @@ class Product extends Import
                             'url_key'   => 'url_key-' . $local,
                             'store_id'  => new Expr($store['store_id']),
                         ]
-                    );
+                    )
+                ->where('_type_id = "bundle"');
 
                 /** @var \Magento\Framework\DB\Statement\Pdo\Mysql $query */
                 $query = $connection->query($select);
