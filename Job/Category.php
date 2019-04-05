@@ -595,7 +595,7 @@ class Category extends Import
                             ->where('entity_id <> ?', $category->getEntityId())
                     );
 
-                    if ($exists && $category->getUrlKey()) {
+                    if ($exists) {
                         $category->setUrlKey($category->getUrlKey() . '-' . $category->getStoreId());
                         /** @var string $requestPath */
                         $requestPath = $this->categoryUrlPathGenerator->getUrlPathWithSuffix(
