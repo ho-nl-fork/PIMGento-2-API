@@ -231,6 +231,9 @@ class Category extends Import
                     $urlKey = $this->categoryModel->formatUrlKey($row['name']);
                     /** @var string $finalKey */
                     $finalKey = $urlKey;
+                    if (! $finalKey) {
+                        continue;
+                    }
                     /** @var int $increment */
                     $increment = 1;
                     while (in_array($finalKey, $keys)) {
@@ -592,7 +595,7 @@ class Category extends Import
                             ->where('entity_id <> ?', $category->getEntityId())
                     );
 
-                    if ($exists) {
+                    if ($exists && $category->getUrlKey()) {
                         $category->setUrlKey($category->getUrlKey() . '-' . $category->getStoreId());
                         /** @var string $requestPath */
                         $requestPath = $this->categoryUrlPathGenerator->getUrlPathWithSuffix(
