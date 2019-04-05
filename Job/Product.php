@@ -504,7 +504,7 @@ class Product extends Import
             }
 
             // The _children column will hold a list referencing all children of the configurable.
-            $connection->addColumn($tmpTable, '_children', 'text');
+            $connection->addColumn($tmpTable, '_children', 'longtext');
             // The _axis column will hold a list of variation axes applicable to the configurable's children
             $connection->addColumn($tmpTable, '_axis', 'text');
 
@@ -713,6 +713,7 @@ class Product extends Import
 
         /** @var string $query */
         $query = $connection->insertFromSelect($configurable, $configurableTmpTable, array_keys($data));
+        $connection->query('SET SESSION group_concat_max_len = 2000000');
         $connection->query($query);
 
         // Query tmp_pimgento_entities_low_level_configurables for entries without a parent,
@@ -863,6 +864,7 @@ class Product extends Import
 
         /** @var string $query */
         $query = $connection->insertFromSelect($select, $productTmpTable, array_keys($data));
+        $connection->query('SET SESSION group_concat_max_len = 2000000');
         $connection->query($query);
 
         $this->updateFirstAxis();
@@ -1130,6 +1132,7 @@ class Product extends Import
                 AdapterInterface::INSERT_ON_DUPLICATE
             );
 
+            $connection->query('SET SESSION group_concat_max_len = 2000000');
             $connection->query($query);
         }
     }
