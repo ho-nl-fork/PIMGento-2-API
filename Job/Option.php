@@ -304,7 +304,8 @@ class Option extends Import
                         ['b' => $this->entitiesHelper->getTable('pimgento_entities')],
                         'a.attribute = b.code AND b.import = "attribute"',
                         []
-                    );
+                    )
+                -> where('`labels-'.$local . '` IS NOT NULL');
                 $connection->query(
                     $connection->insertFromSelect(
                         $options,
