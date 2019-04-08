@@ -2431,7 +2431,7 @@ class Product extends Import
         $data = $query->fetch();
 
         foreach ($data as $colName => $value) {
-            if ($value !== null && $value !== '') $relevantColumns[] = $colName;
+            $relevantColumns[] = $colName;
         }
 
         return $relevantColumns;
