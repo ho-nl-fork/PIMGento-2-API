@@ -4,7 +4,7 @@
   ~ See LICENSE.txt for license details.
   -->
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Cron:etc/crontab.xsd">
-    <group id="default">
+    <group id="index">
         <job name="pimgento_akeneo_import" instance="Pimgento\Api\Cron\PimgentoAkeneoImport" method="execute">
             <schedule>0 1 * * *</schedule>
         </job>
