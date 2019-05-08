@@ -16,6 +16,8 @@ use Magento\Framework\DB\Select;
 use Magento\Framework\Event\ManagerInterface;
 use Magento\Framework\Exception\LocalizedException;
 use Magento\Framework\App\Cache\TypeListInterface;
+use Magento\Framework\Exception\NotFoundException;
+use Magento\MediaStorage\Service\ImageResize;
 use Magento\PageCache\Model\Cache\Type;
 use Magento\CatalogUrlRewrite\Model\ProductUrlPathGenerator;
 use Magento\CatalogUrlRewrite\Model\ProductUrlRewriteGenerator;
@@ -189,6 +191,11 @@ class Product extends Import
     protected $optionJob;
 
     /**
+     * @var ImageResize
+     */
+    private $imageResize;
+
+    /**
      * Product constructor.
      *
      * @param OutputHelper $outputHelper
@@ -222,6 +229,7 @@ class Product extends Import
         TypeListInterface $cacheTypeList,
         StoreHelper $storeHelper,
         Option $optionJob,
+        ImageResize $imageResize,
         array $data = []
     ) {
         parent::__construct($outputHelper, $eventManager, $authenticator, $logger, $data);
@@ -237,6 +245,7 @@ class Product extends Import
         $this->productUrlPathGenerator = $productUrlPathGenerator;
         $this->optionJob               = $optionJob;
         $this->configurableTmpTableSuffix = 'low_level_configurable';
+        $this->imageResize = $imageResize;
     }
 
     /**s
@@ -2079,6 +2088,8 @@ class Product extends Import
         /** @var string $productImageTable */
         $productImageTable = $this->entitiesHelper->getTable('catalog_product_entity_varchar');
 
+        $resizeFiles = [];
+
         /** @var array $row */
         while (($row = $query->fetch())) {
             /** @var array $files */
@@ -2155,6 +2166,7 @@ class Product extends Import
                 }
 
                 $files[] = $file;
+                $resizeFiles[$file] = 1;
             }
 
             /** @var \Magento\Framework\DB\Select $cleaner */
@@ -2169,6 +2181,13 @@ class Product extends Import
                     $columnIdentifier . ' = ?' => $row[$columnIdentifier]
                 ]
             );
+        }
+
+        foreach ($resizeFiles as $file => $value) {
+            try {
+                $this->imageResize->resizeFromImageName($file);
+            } catch (NotFoundException $e) {
+            }
         }
     }
 
