@@ -8,9 +8,7 @@ declare(strict_types=1);
 namespace Pimgento\Api\Cron;
 
 use Magento\Framework\App\State;
-use Magento\Framework\Exception\NotFoundException;
 use Magento\Framework\Phrase;
-use Magento\MediaStorage\Service\ImageResize;
 use Pimgento\Api\Api\ImportRepositoryInterface;
 use Pimgento\Api\Job\Import;
 use Pimgento\Api\Logger\Logger;
@@ -40,24 +38,17 @@ class PimgentoAkeneoImport
     private $logger;
 
     /**
-     * @var ImageResize
-     */
-    private $resize;
-
-    /**
      * PimgentoAkeneoImport constructor.
      */
     public function __construct(
         ImportRepositoryInterface\Proxy $importRepository,
         State $appState,
-        Logger $logger,
-        ImageResize $resize
+        Logger $logger
     )
     {
         $this->appState         = $appState;
         $this->importRepository = $importRepository;
         $this->logger = $logger;
-        $this->resize = $resize;
     }
 
     /**
@@ -73,23 +64,6 @@ class PimgentoAkeneoImport
             }
         }
 
-        // Resize images so that all imported images will appear in the cache.
-        try {
-            $generator = $this->resize->resizeFromThemes();
-            while ($generator->valid()) {
-                try {
-                    $generator->next();
-                } catch (\Exception $e) {
-                    /** @var string $message */
-                    $message = $e->getMessage();
-                    $this->logger->error($message);
-                }
-            }
-        } catch (NotFoundException $e) {
-            /** @var string $message */
-            $message = $e->getMessage();
-            $this->logger->error($message);
-        }
         return $this;
     }
 
@@ -125,7 +99,6 @@ class PimgentoAkeneoImport
                 /** @var string $message */
                 $message = $import->getMessage();
                 if (!$import->getStatus()) {
-                    $message = '<error>' . $message . '</error>';
                     $this->logger->error($message);
                 }
                 else {
