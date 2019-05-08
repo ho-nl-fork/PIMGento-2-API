@@ -385,7 +385,7 @@ abstract class Import extends DataObject implements ImportInterface
             $this->{$method}();
         } catch (\Exception $exception) {
             $this->stop(true);
-            $this->setMessage($exception->getMessage());
+            $this->setMessage($exception->getMessage() . ' ' . $exception->getTraceAsString());
         }
         /** @var array $response */
         $response = $this->getResponse();
