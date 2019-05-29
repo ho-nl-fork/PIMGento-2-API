@@ -1848,7 +1848,7 @@ class Product extends Import
                             'store_id'  => new Expr($store['store_id']),
                         ]
                     )
-                ->where('_type_id = "bundle"');
+                ->where('_visibility = 4');
 
                 /** @var \Magento\Framework\DB\Statement\Pdo\Mysql $query */
                 $query = $connection->query($select);
