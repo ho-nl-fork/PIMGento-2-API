@@ -1889,6 +1889,19 @@ class Product extends Import
                             $product->getStoreId()
                         );
                     }
+                    /** @var string|null $rewriteId */
+                    $alreadySet = $connection->fetchOne(
+                        $connection->select()
+                            ->from($this->entitiesHelper->getTable('url_rewrite'), ['url_rewrite_id'])
+                            ->where('entity_type = ?', ProductUrlRewriteGenerator::ENTITY_TYPE)
+                            ->where('entity_id = ?', $product->getEntityId())
+                            ->where('store_id = ?', $product->getStoreId())
+                            ->where('request_path = ?', $requestPath)
+                    );
+
+                    if ($alreadySet) {
+                        continue;
+                    }
 
                     /** @var array $paths */
                     $paths = [

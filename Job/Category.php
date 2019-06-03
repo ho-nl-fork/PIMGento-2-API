@@ -605,6 +605,20 @@ class Category extends Import
                     }
 
                     /** @var string|null $rewriteId */
+                    $alreadySet = $connection->fetchOne(
+                        $connection->select()
+                            ->from($this->entitiesHelper->getTable('url_rewrite'), ['url_rewrite_id'])
+                            ->where('entity_type = ?', CategoryUrlRewriteGenerator::ENTITY_TYPE)
+                            ->where('entity_id = ?', $category->getEntityId())
+                            ->where('store_id = ?', $category->getStoreId())
+                            ->where('request_path = ?', $requestPath)
+                    );
+
+                    if ($alreadySet) {
+                        continue;
+                    }
+
+                    /** @var string|null $rewriteId */
                     $rewriteId = $connection->fetchOne(
                         $connection->select()
                             ->from($this->entitiesHelper->getTable('url_rewrite'), ['url_rewrite_id'])
