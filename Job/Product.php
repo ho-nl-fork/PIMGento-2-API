@@ -506,7 +506,12 @@ class Product extends Import
                     'COMMENT' => ' ',
                     'nullable' => false
                 ]);
-                $connection->update($tmpTable, ['url_key' => new Expr('LOWER(`identifier`)')]);
+                $connection->update($tmpTable, ['url_key' => new Expr('LOWER(`identifier`)')], 'family <> "fluids"');
+                if ($connection->tableColumnExists($tmpTable, 'volume')) {
+                    $connection->update($tmpTable,
+                        ['url_key' => new Expr('CONCAT(LOWER(`producer_product_name`), "-", `quantity`, "x", `volume`)')],
+                        'family = "fluids"');
+                }
             }
             if ($connection->tableColumnExists($tmpTable, 'enabled')) {
                 $connection->update($tmpTable, ['_status' => new Expr('IF(`enabled` <> 1, 2, 1)')]);
@@ -1888,19 +1893,6 @@ class Product extends Import
                             $product,
                             $product->getStoreId()
                         );
-                    }
-                    /** @var string|null $rewriteId */
-                    $alreadySet = $connection->fetchOne(
-                        $connection->select()
-                            ->from($this->entitiesHelper->getTable('url_rewrite'), ['url_rewrite_id'])
-                            ->where('entity_type = ?', ProductUrlRewriteGenerator::ENTITY_TYPE)
-                            ->where('entity_id = ?', $product->getEntityId())
-                            ->where('store_id = ?', $product->getStoreId())
-                            ->where('request_path = ?', $requestPath)
-                    );
-
-                    if ($alreadySet) {
-                        continue;
                     }
 
                     /** @var array $paths */
