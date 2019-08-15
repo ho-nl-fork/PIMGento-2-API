@@ -415,7 +415,7 @@ class Product extends Import
                         $data = [
                             'code'          => $option,
                             'attribute'     => $forkedCode,
-                            'sort_order'    => $amount * 1000 + 25000
+                            'sort_order'    => $this->getSortOrderForForkedOption($option, $forkedCode, $amount, $unitSymbol)
                         ];
                         // Add labels for each locale.
                         foreach ($localeSuffixes as $localeSuffix) {
@@ -435,6 +435,11 @@ class Product extends Import
                 $this->optionJob->runFromStep(3);
             }
         }
+    }
+
+    public function getSortOrderForForkedOption(string $option, string $forkedCode, string $amount, string $unitSymbol)
+    {
+        return $amount * 1000 + 25000;
     }
 
     /**
