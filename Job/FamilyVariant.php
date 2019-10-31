@@ -257,7 +257,7 @@ class FamilyVariant extends Import
         $allAxisCodesStr = '';
         $ignoreAxisCodes = [];
         while ($row = $variantFamily->fetch()) {
-            $allAxisCodesStr .= $row['_axis_codes'];
+            $allAxisCodesStr .= $row['_axis_codes'] . ',';
 
             if (isset($row['variant-axes_1'], $row['variant-axes_2'])) {
                 foreach (explode(',', $row['variant-axes_1']) as $ignoreAxisCode) {
