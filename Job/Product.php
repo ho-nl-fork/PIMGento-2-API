@@ -1899,7 +1899,7 @@ class Product extends Import
                     );
                     if ($exists) {
                         $this->logger->warning(__(
-                            'Duplicate URL rewrite "%s" for product ID %s, store ID %s. Proceeding with store ID as additional suffix.',
+                            'Duplicate URL rewrite "%1" for product ID %2, store ID %3. Proceeding with store ID as additional suffix.',
                             $requestPath,
                             $product->getEntityId(),
                             $product->getStoreId()
@@ -2012,7 +2012,7 @@ class Product extends Import
                                 );
                             } catch (DuplicateException $e) {
                                 $this->logger->error(__(
-                                    'Failed to update rewrite to "%s" for store ID %s and product ID %s due to rewrite conflict',
+                                    'Failed to update rewrite to "%1" for store ID %2 and product ID %3 due to rewrite conflict',
                                     $requestPath,
                                     $product->getStoreId(),
                                     $product->getEntityId()
@@ -2163,7 +2163,7 @@ class Product extends Import
                     $file = $this->configHelper->getMediaFilePath($name);
                 } catch (\InvalidArgumentException $e) {
                     $this->logger->error(
-                        __('Failed to import gallery image "%s" . Possibly the file name is too long', $name)
+                        __('Failed to import gallery image "%1" . Possibly the file name is too long', $name)
                     );
                     continue;
                 }
