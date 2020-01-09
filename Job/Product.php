@@ -12,6 +12,7 @@ use Magento\Catalog\Model\Category as CategoryModel;
 use Magento\Framework\App\Cache\Type\Block;
 use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Framework\DB\Adapter\AdapterInterface;
+use Magento\Framework\DB\Adapter\DuplicateException;
 use Magento\Framework\DB\Select;
 use Magento\Framework\Event\ManagerInterface;
 use Magento\Framework\Exception\LocalizedException;
@@ -1886,6 +1887,7 @@ class Product extends Import
                         $product->getStoreId()
                     );
 
+                    // Check if rewrite already exists for this request_path + store_id, but a different entity ID
                     /** @var string|null $exists */
                     $exists = $connection->fetchOne(
                         $connection->select()
@@ -1896,6 +1898,12 @@ class Product extends Import
                             ->where('entity_id <> ?', $product->getEntityId())
                     );
                     if ($exists) {
+                        $this->logger->warning(__(
+                            'Duplicate URL rewrite "%s" for product ID %s, store ID %s. Proceeding with store ID as additional suffix.',
+                            $requestPath,
+                            $product->getEntityId(),
+                            $product->getStoreId()
+                        ));
                         $product->setUrlKey($product->getUrlKey() . '-' . $product->getStoreId());
                         /** @var string $requestPath */
                         $requestPath = $this->productUrlPathGenerator->getUrlPathWithSuffix(
@@ -1970,6 +1978,7 @@ class Product extends Import
                         /** @var string $metadata */
                         $metadata = $path['metadata'];
 
+                        // Find and update existing URL rewrite for this product
                         /** @var string|null $rewriteId */
                         $rewriteId = $connection->fetchOne(
                             $connection->select()
@@ -1981,11 +1990,34 @@ class Product extends Import
                         );
 
                         if ($rewriteId) {
-                            $connection->update(
+                            // Before we update the system URL rewrite, first delete any redirects for the same
+                            // request_path for this product. This may still not be enough to avoid duplicate key errors
+                            // (i.e. redirect for a different product with the same request_path), but such conflicts
+                            // should problably be resolved by hand.
+                            $connection->delete(
                                 $this->entitiesHelper->getTable('url_rewrite'),
-                                ['request_path' => $requestPath, 'metadata' => $metadata],
-                                ['url_rewrite_id = ?' => $rewriteId]
+                                [
+                                    'entity_type = ?' => ProductUrlRewriteGenerator::ENTITY_TYPE,
+                                    'request_path = ?' => $requestPath,
+                                    'entity_id = ?' => $product->getEntityId(),
+                                    'store_id = ?' => $product->getStoreId(),
+                                    'redirect_type IN (?)' => [ 301, 302 ],
+                                ]
                             );
+                            try {
+                                $connection->update(
+                                    $this->entitiesHelper->getTable('url_rewrite'),
+                                    ['request_path' => $requestPath, 'metadata' => $metadata],
+                                    ['url_rewrite_id = ?' => $rewriteId]
+                                );
+                            } catch (DuplicateException $e) {
+                                $this->logger->error(__(
+                                    'Failed to update rewrite to "%s" for store ID %s and product ID %s due to rewrite conflict',
+                                    $requestPath,
+                                    $product->getStoreId(),
+                                    $product->getEntityId()
+                                ));
+                            }
                         } else {
                             /** @var array $data */
                             $data = [
