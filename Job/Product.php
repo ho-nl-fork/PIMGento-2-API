@@ -1869,6 +1869,10 @@ class Product extends Import
                     $product = $this->product;
                     $product->setData($row);
 
+                    // Force formatting of url_key as this is not done by default anymore with 2.3.3, when not derived
+                    // from product name. See https://github.com/magento/magento2/commit/6f4f511822fbbcb743a7d4a8de6353d207d99429#diff-386b1042295a816ae69d1e2988756f82L137-L141
+                    $product->setUrlKey($this->product->formatUrlKey($row['url_key']));
+
                     /** @var string $urlPath */
                     $urlPath = $this->productUrlPathGenerator->getUrlPath($product);
 
