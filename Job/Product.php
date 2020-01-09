@@ -2154,13 +2154,12 @@ class Product extends Import
                 /** @var string $name */
                 $name  = basename($media['code']);
 
-                if (!$this->configHelper->mediaFileExists($name)) {
-                    $binary = $this->akeneoClient->getProductMediaFileApi()->download($row[$image]);
-                    $this->configHelper->saveMediaFile($name, $binary);
-                }
-
                 /** @var string $file */
                 try {
+                    if (!$this->configHelper->mediaFileExists($name)) {
+                        $binary = $this->akeneoClient->getProductMediaFileApi()->download($row[$image]);
+                        $this->configHelper->saveMediaFile($name, $binary);
+                    }
                     $file = $this->configHelper->getMediaFilePath($name);
                 } catch (\InvalidArgumentException $e) {
                     $this->logger->error(
