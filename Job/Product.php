@@ -2160,7 +2160,14 @@ class Product extends Import
                 }
 
                 /** @var string $file */
-                $file = $this->configHelper->getMediaFilePath($name);
+                try {
+                    $file = $this->configHelper->getMediaFilePath($name);
+                } catch (\InvalidArgumentException $e) {
+                    $this->logger->error(
+                        __('Failed to import gallery image "%s" . Possibly the file name is too long', $name)
+                    );
+                    continue;
+                }
 
                 /** @var int $valueId */
                 $valueId = $connection->fetchOne(
