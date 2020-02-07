@@ -117,6 +117,13 @@ class PimgentoAkeneoImport
             return false;
         }
 
+        // If the import is flagged as failed or incomplete, throw an error so the cronjob actually gets marked as
+        // failed.
+        if (!$import->getStatus()) {
+            throw new \RuntimeException('One or more errors occured during import, see error log for more details: '.
+                $import->getMessage());
+        }
+
         return true;
     }
 }
