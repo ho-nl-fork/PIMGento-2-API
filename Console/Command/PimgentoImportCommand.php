@@ -76,10 +76,15 @@ class PimgentoImportCommand extends Command
 
     /**
      * {@inheritdoc}
+     * @throws \Exception
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
+        if ($this->appState->getMode() !== State::MODE_DEVELOPER) {
+            throw new \RuntimeException('Don\'t run this command in production - might cause store emulation issues');
+        }
         try {
+            // @fixme Setting area code to CRONTAB might fix store emulation issue
             $this->appState->setAreaCode(Area::AREA_ADMINHTML);
         } catch (LocalizedException $exception) {
             /** @var string $message */
