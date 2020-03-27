@@ -1790,6 +1790,8 @@ class Product extends Import
             }
         }
 
+        $visibilityAttributeId = $this->entitiesHelper->getAttribute('visibility', 4)['attribute_id'];
+
         /**
          * @var int      $typeId
          * @var string[] $columns
@@ -1797,16 +1799,17 @@ class Product extends Import
         foreach ($related as $typeId => $columns) {
             /** @var string $concat */
             $concat = sprintf('CONCAT_WS(",", %s)', implode(', ', $columns));
+
             /** @var \Magento\Framework\DB\Select $select */
-            $select = $connection->select()->from(['c' => $entitiesTable], [])->joinInner(
-                ['p' => $tmpTable],
-                sprintf('FIND_IN_SET(`c`.`code`, %s) AND `c`.`import` = "%s"', $concat, $this->getCode()),
+            $select = $connection->select()->from(['p' => $tmpTable], []
+            )->joinInner(['link' => $connection->getTableName('pimgento_product_model_link')], sprintf('FIND_IN_SET(`link`.`model`, %s)', $concat),
                 [
                     'product_id'        => 'p._entity_id',
-                    'linked_product_id' => 'c.entity_id',
+                    'linked_product_id' => 'link.product_id',
                     'link_type_id'      => new Expr($typeId),
-                ]
-            )->joinInner(['e' => $productsTable], sprintf('c.entity_id = e.%s', $columnIdentifier), []);
+                ])->joinInner(['a' => $connection->getTableName('catalog_product_entity_int')],
+                \sprintf('`a`.`entity_id` = `link`.`product_id` AND `a`.`value` = 4 AND `a`.`attribute_id` = %s', $visibilityAttributeId),
+                []);
 
             /* Remove old link */
             $connection->delete(
