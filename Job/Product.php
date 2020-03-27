@@ -1243,19 +1243,31 @@ class Product extends Import
         /** @var string $tmpTable */
         $modelProductLinkTable = $connection->getTableName('pimgento_product_model_link');
 
-        /** @var Select $parentCodeSlecet */
-        $tmpProductSelect = $connection->select()->from($tmpTable, ['identifier', 'parent']);
-        $tmpProductSelect->joinLeft(['entity' => $connection->getTableName('catalog_product_entity')], 'identifier = entity.sku', ['entity_id']);
-        $products = $connection->query($tmpProductSelect, $tmpTable)->fetchAll();
-        foreach ($products as $product) {
-            $model = $this->getModelFromParent($product['parent'], $parentToModel);
-            $values[]= [
-                'product_id' => $product['entity_id'],
-                'model' => $model
-            ];
+        $batchSize = 10000;
+
+        $currentBatch = 1;
+
+        while (true) {
+            /** @var Select $tmpProductSelect */
+            $tmpProductSelect = $connection->select()->from($tmpTable, ['identifier', 'parent']);
+            $tmpProductSelect->joinLeft(['entity' => $connection->getTableName('catalog_product_entity')],
+                'identifier = entity.sku', ['entity_id'])->limitPage($currentBatch, $batchSize);
+            $products = $connection->query($tmpProductSelect, $tmpTable)->fetchAll();
+            foreach ($products as $product) {
+                $model    = $this->getModelFromParent($product['parent'], $parentToModel);
+                $values[] = [
+                    'product_id' => $product['entity_id'],
+                    'model' => $model
+                ];
+            }
+            $connection->insertOnDuplicate($modelProductLinkTable, $values);
+            // No more entries left, we can exist the loop.
+            if (\sizeof($products) < $batchSize) {
+                break;
+            }
+            $currentBatch++;
         }
 
-        $connection->insertOnDuplicate($modelProductLinkTable, $values);
     }
 
     private function getModelFromParent($parent, &$parentToModel)
