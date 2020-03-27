@@ -1228,6 +1228,61 @@ class Product extends Import
             ];
             $connection->update($table, $values, 'created_in = 0 AND updated_in = 0');
         }
+        $this->mapEntitiesToModel();
+    }
+
+    private function mapEntitiesToModel()
+    {
+        $values = [];
+        $parentToModel = [];
+
+        /** @var AdapterInterface $connection */
+        $connection = $this->entitiesHelper->getConnection();
+        /** @var string $tmpTable */
+        $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
+        /** @var string $tmpTable */
+        $modelProductLinkTable = $connection->getTableName('pimgento_product_model_link');
+
+        /** @var Select $parentCodeSlecet */
+        $tmpProductSelect = $connection->select()->from($tmpTable, ['identifier', 'parent']);
+        $tmpProductSelect->joinLeft(['entity' => $connection->getTableName('catalog_product_entity')], 'identifier = entity.sku', ['entity_id']);
+        $products = $connection->query($tmpProductSelect, $tmpTable)->fetchAll();
+        foreach ($products as $product) {
+            $model = $this->getModelFromParent($product['parent'], $parentToModel);
+            $values[]= [
+                'product_id' => $product['entity_id'],
+                'model' => $model
+            ];
+        }
+
+        $connection->insertOnDuplicate($modelProductLinkTable, $values);
+    }
+
+    private function getModelFromParent($parent, &$parentToModel)
+    {
+        if (isset($parentToModel[$parent])) {
+            return $parentToModel[$parent];
+        }
+
+        /** @var AdapterInterface $connection */
+        $connection = $this->entitiesHelper->getConnection();
+        $modelTableName = $connection->getTableName('pimgento_product_model');
+
+        $nextParent = $parent;
+        while ($nextParent) {
+            $model = $nextParent;
+            /** @var Select $parentCodeSelect */
+            $parentCodeSelect = $connection->select()->from($modelTableName, ['parent']);
+            $parentCodeSelect->where('code = ?', $model);
+            $parentCodeResult = $connection->query($parentCodeSelect, $modelTableName)->fetchAll();
+            if (\sizeof($parentCodeResult) === 0) {
+                $nextParent = null;
+            } else {
+                $nextParent = $parentCodeResult[0]['parent'];
+            }
+        }
+        $parentToModel[$parent] = $model;
+        return $model;
     }
 
     /**
