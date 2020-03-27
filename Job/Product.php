@@ -87,8 +87,8 @@ class Product extends Import
             'UPSELL-product_models',
         ],
         Link::LINK_TYPE_CROSSSELL => [
-            'X_SELL-products',
-            'X_SELL-product_models',
+            'cross_sell-products',
+            'cross_sell-product_models',
         ],
     ];
     /**
@@ -665,6 +665,9 @@ class Product extends Import
                         $productModelTable,
                         $associationName
                     ) && $connection->tableColumnExists($productTmpTable, $associationName)) {
+                    if (!$connection->tableColumnExists($configurableTmpTable, $associationName)) {
+                        $connection->addColumn($configurableTmpTable, $associationName, 'text');
+                    }
                     $data[$associationName] = sprintf('v.%s', $associationName);
                 }
             }
