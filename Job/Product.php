@@ -1800,8 +1800,8 @@ class Product extends Import
             /** @var string $concat */
             $concat = sprintf('CONCAT_WS(",", %s)', implode(', ', $columns));
 
-            /** @var \Magento\Framework\DB\Select $select */
-            $select = $connection->select()->from(['p' => $tmpTable], []
+            /** @var \Magento\Framework\DB\Select $selectModel */
+            $selectModel = $connection->select()->from(['p' => $tmpTable], []
             )->joinInner(['link' => $connection->getTableName('pimgento_product_model_link')], sprintf('FIND_IN_SET(`link`.`model`, %s)', $concat),
                 [
                     'product_id'        => 'p._entity_id',
@@ -1810,17 +1810,43 @@ class Product extends Import
                 ])->joinInner(['a' => $connection->getTableName('catalog_product_entity_int')],
                 \sprintf('`a`.`entity_id` = `link`.`product_id` AND `a`.`value` = 4 AND `a`.`attribute_id` = %s', $visibilityAttributeId),
                 []);
+            /** @var \Magento\Framework\DB\Select $selectSku */
+            $selectSku = $connection->select()->from(['p' => $tmpTable], []
+            )->joinInner(['e' => $connection->getTableName('catalog_product_entity')], sprintf('FIND_IN_SET(`e`.`sku`, %s)', $concat),
+                [
+                    'product_id'        => 'p._entity_id',
+                    'linked_product_id' => 'e.entity_id',
+                    'link_type_id'      => new Expr($typeId),
+                ])->joinInner(['a' => $connection->getTableName('catalog_product_entity_int')],
+                \sprintf('`a`.`entity_id` = `e`.`entity_id` AND `a`.`value` = 4 AND `a`.`attribute_id` = %s', $visibilityAttributeId),
+                []);
+
+            /** @var \Magento\Framework\DB\Select $importedProductSelect */
+            $importedProductSelect = $connection->select()->from(['p' => $tmpTable], ['p._entity_id']);
 
             /* Remove old link */
             $connection->delete(
                 $linkTable,
-                ['(product_id, linked_product_id, link_type_id) NOT IN (?)' => $select, 'link_type_id = ?' => $typeId]
+                ['(product_id, linked_product_id, link_type_id) NOT IN (?)' => $selectModel,
+                 'link_type_id = ?' => $typeId,
+                 '(product_id, linked_product_id, link_type_id) NOT IN (?) /* random comment so this statement is different from the similar statement for the $modelSelect query. */' => $selectSku,
+                    'product_id IN (?)' => $importedProductSelect ]
             );
 
             /* Insert new link */
             $connection->query(
                 $connection->insertFromSelect(
-                    $select,
+                    $selectModel,
+                    $linkTable,
+                    ['product_id', 'linked_product_id', 'link_type_id'],
+                    AdapterInterface::INSERT_ON_DUPLICATE
+                )
+            );
+
+            /* Insert new link */
+            $connection->query(
+                $connection->insertFromSelect(
+                    $selectSku,
                     $linkTable,
                     ['product_id', 'linked_product_id', 'link_type_id'],
                     AdapterInterface::INSERT_ON_DUPLICATE
