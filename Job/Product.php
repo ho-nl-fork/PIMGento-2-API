@@ -2192,8 +2192,20 @@ class Product extends Import
         $tmpTable = $this->entitiesHelper->getTableName($this->getCode());
         /** @var array $gallery */
         $gallery = $this->configHelper->getMediaImportGalleryColumns();
+        $galleryLookup = [];
+        foreach ($gallery as $imageColumn) {
+            $galleryLookup[$imageColumn] = 1;
+        }
 
-        if (empty($gallery)) {
+        $attributes = $this->akeneoClient->getAttributeApi()->all(100);
+        $imageAttribtues = [];
+        foreach ($attributes as $attribute) {
+            if ($attribute['type'] === 'pim_catalog_image') {
+                $imageAttribtues[] = $attribute['code'];
+            }
+        }
+
+        if (empty($imageAttribtues)) {
             $this->setStatus(false);
             $this->setMessage(__('PIM Images Attributes is empty'));
 
@@ -2210,7 +2222,7 @@ class Product extends Import
             $columnIdentifier => '_entity_id',
             'sku'             => 'identifier',
         ];
-        foreach ($gallery as $image) {
+        foreach ($imageAttribtues as $image) {
             if (!$connection->tableColumnExists($tmpTable, $image)) {
                 $this->setMessage(__('Warning: %1 attribute does not exist', $image));
                 continue;
@@ -2237,9 +2249,9 @@ class Product extends Import
 
         /** @var array $row */
         while (($row = $query->fetch())) {
-            /** @var array $files */
-            $files = [];
-            foreach ($gallery as $image) {
+            /** @var array $galleryFiles */
+            $galleryFiles = [];
+            foreach ($imageAttribtues as $image) {
                 if (!isset($row[$image])) {
                     continue;
                 }
@@ -2282,15 +2294,30 @@ class Product extends Import
                     $valueId += 1;
                 }
 
-                /** @var array $data */
-                $data = [
-                    'value_id'     => $valueId,
-                    'attribute_id' => $galleryAttribute->getId(),
-                    'value'        => $file,
-                    'media_type'   => ImageEntryConverter::MEDIA_TYPE_CODE,
-                    'disabled'     => 0,
-                ];
-                $connection->insertOnDuplicate($galleryTable, $data, array_keys($data));
+                // Only set the image in the gallery if the attribute is set as a gallery image in the configuration.
+                if (isset($galleryLookup[$image])) {
+                    /** @var array $data */
+                    $data = [
+                        'value_id'     => $valueId,
+                        'attribute_id' => $galleryAttribute->getId(),
+                        'value'        => $file,
+                        'media_type'   => ImageEntryConverter::MEDIA_TYPE_CODE,
+                        'disabled'     => 0,
+                    ];
+                    $connection->insertOnDuplicate($galleryTable, $data, array_keys($data));
+                } else {
+                    // Save the proper filename as the image attribute.
+                    /** @var \Magento\Catalog\Model\ResourceModel\Eav\Attribute $galleryAttribute */
+                    $imageAttribute = $this->configHelper->getAttribute(ProductModel::ENTITY, $image);
+                    /** @var array $data */
+                    $data = [
+                        'attribute_id' => $imageAttribute->getId(),
+                        'value'        => $file,
+                        'store_id'     => 0,
+                        $columnIdentifier => $row[$columnIdentifier],
+                    ];
+                    $connection->insertOnDuplicate($productImageTable, $data, array_keys($data));
+                }
 
                 /** @var array $data */
                 $data =  [
@@ -2316,14 +2343,16 @@ class Product extends Import
                     $connection->insertOnDuplicate($productImageTable, $data, array_keys($data));
                 }
 
-                $files[] = $file;
+                if (isset($galleryLookup[$image])) {
+                    $galleryFiles[] = $file;
+                }
                 $resizeFiles[$file] = 1;
             }
 
             /** @var \Magento\Framework\DB\Select $cleaner */
             $cleaner = $connection->select()
                 ->from($galleryTable, ['value_id'])
-                ->where('value NOT IN (?)', $files);
+                ->where('value NOT IN (?)', $galleryFiles);
 
             $connection->delete(
                 $galleryEntityTable,
