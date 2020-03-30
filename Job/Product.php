@@ -2319,12 +2319,14 @@ class Product extends Import
                     $connection->insertOnDuplicate($productImageTable, $data, array_keys($data));
                 }
 
-                /** @var array $data */
-                $data =  [
-                    'value_id'        => $valueId,
-                    $columnIdentifier => $row[$columnIdentifier]
-                ];
-                $connection->insertOnDuplicate($galleryEntityTable, $data, array_keys($data));
+                if (isset($galleryLookup[$image])) {
+                    /** @var array $data */
+                    $data = [
+                        'value_id' => $valueId,
+                        $columnIdentifier => $row[$columnIdentifier]
+                    ];
+                    $connection->insertOnDuplicate($galleryEntityTable, $data, array_keys($data));
+                }
 
                 /** @var array $columns */
                 $columns = $this->configHelper->getMediaImportImagesColumns();
