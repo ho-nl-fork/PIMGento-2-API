@@ -294,6 +294,9 @@ class Product extends Import
          * @var array $product
          */
         foreach ($products as $index => $product) {
+            if ($product['parent'] === null) {
+                continue;
+            }
             $this->entitiesHelper->insertDataFromApi($product, $this->getCode());
         }
         if ($index) {
@@ -512,12 +515,7 @@ class Product extends Import
                     'COMMENT' => ' ',
                     'nullable' => false
                 ]);
-                $connection->update($tmpTable, ['url_key' => new Expr('LOWER(`identifier`)')], 'family <> "fluids"');
-                if ($connection->tableColumnExists($tmpTable, 'volume')) {
-                    $connection->update($tmpTable,
-                        ['url_key' => new Expr('CONCAT(LOWER(`producer_product_name`), "-", `quantity`, "x", `volume`)')],
-                        'family = "fluids"');
-                }
+                $this->updateUrlKey($tmpTable);
             }
             if ($connection->tableColumnExists($tmpTable, 'enabled')) {
                 $connection->update($tmpTable, ['_status' => new Expr('IF(`enabled` <> 1, 2, 1)')]);
@@ -544,6 +542,17 @@ class Product extends Import
             }
 
 
+        }
+    }
+
+    public function updateUrlKey(string $tmpTable) {
+        /** @var \Magento\Framework\DB\Adapter\AdapterInterface $connection */
+        $connection = $this->entitiesHelper->getConnection();
+        $connection->update($tmpTable, ['url_key' => new Expr('LOWER(`identifier`)')], 'family <> "fluids"');
+        if ($connection->tableColumnExists($tmpTable, 'volume')) {
+            $connection->update($tmpTable,
+                ['url_key' => new Expr('CONCAT(LOWER(`producer_product_name`), "-", `quantity`, "x", `volume`)')],
+                'family = "fluids"');
         }
     }
 
