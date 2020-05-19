@@ -2349,7 +2349,7 @@ class Product extends Import
                     $connection->insertOnDuplicate($productImageTable, $data, array_keys($data));
                 }
 
-                if (isset($galleryLookup[$image])) {
+                if (isset($galleryLookup[$columnNameToAttributeLookup[$image]])) {
                     /** @var array $data */
                     $data = [
                         'value_id' => $valueId,
