@@ -2214,11 +2214,24 @@ class Product extends Import
             $galleryLookup[$imageColumn] = 1;
         }
 
+        /** @var array $stores */
+        $stores = $this->storeHelper->getAllStores();
+
+        $columnNameToAttributeLookup = [];
+
         $attributes = $this->akeneoClient->getAttributeApi()->all(100);
         $imageAttribtues = [];
         foreach ($attributes as $attribute) {
             if ($attribute['type'] === 'pim_catalog_image') {
                 $imageAttribtues[] = $attribute['code'];
+                $columnNameToAttributeLookup[$attribute['code']] = $attribute['code'];
+                // For scopable image attributes at various possibly scopes.
+                if ($attribute['scopable']) {
+                    foreach ($stores as $code => $store) {
+                        $imageAttribtues[] = $attribute['code'] . '-' . $code;
+                        $columnNameToAttributeLookup[$attribute['code'] . '-' . $code] = $attribute['code'];
+                    }
+                }
             }
         }
 
@@ -2312,7 +2325,7 @@ class Product extends Import
                 }
 
                 // Only set the image in the gallery if the attribute is set as a gallery image in the configuration.
-                if (isset($galleryLookup[$image])) {
+                if (isset($galleryLookup[$columnNameToAttributeLookup[$image]])) {
                     /** @var array $data */
                     $data = [
                         'value_id'     => $valueId,
@@ -2325,7 +2338,7 @@ class Product extends Import
                 } else {
                     // Save the proper filename as the image attribute.
                     /** @var \Magento\Catalog\Model\ResourceModel\Eav\Attribute $galleryAttribute */
-                    $imageAttribute = $this->configHelper->getAttribute(ProductModel::ENTITY, $image);
+                    $imageAttribute = $this->configHelper->getAttribute(ProductModel::ENTITY, $columnNameToAttributeLookup[$image]);
                     /** @var array $data */
                     $data = [
                         'attribute_id' => $imageAttribute->getId(),
