@@ -2375,7 +2375,7 @@ class Product extends Import
                     $connection->insertOnDuplicate($productImageTable, $data, array_keys($data));
                 }
 
-                if (isset($galleryLookup[$image])) {
+                if (isset($galleryLookup[$columnNameToAttributeLookup[$image]])) {
                     $galleryFiles[] = $file;
                 }
                 $resizeFiles[$file] = 1;
