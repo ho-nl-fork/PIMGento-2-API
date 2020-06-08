@@ -1345,13 +1345,7 @@ class Product extends Import
             $values[0]['status'] = '_status';
         }
 
-        /** @var mixed[] $taxClasses */
-        $taxClasses = $this->configHelper->getProductTaxClasses();
-        if (count($taxClasses)) {
-            foreach ($taxClasses as $storeId => $taxClassId) {
-                $values[$storeId]['tax_class_id'] = new Expr($taxClassId);
-            }
-        }
+        $values = $this->setTaxClasses($values);
 
         /** @var string $column */
         foreach ($columns as $column) {
@@ -1434,6 +1428,18 @@ class Product extends Import
                 AdapterInterface::INSERT_ON_DUPLICATE
             );
         }
+    }
+
+    public function setTaxClasses($values)
+    {
+        /** @var mixed[] $taxClasses */
+        $taxClasses = $this->configHelper->getProductTaxClasses();
+        if (count($taxClasses)) {
+            foreach ($taxClasses as $storeId => $taxClassId) {
+                $values[$storeId]['tax_class_id'] = new Expr($taxClassId);
+            }
+        }
+        return $values;
     }
 
     /**
