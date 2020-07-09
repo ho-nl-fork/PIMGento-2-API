@@ -294,9 +294,6 @@ class Product extends Import
          * @var array $product
          */
         foreach ($products as $index => $product) {
-            if ($product['parent'] === null) {
-                continue;
-            }
             $this->entitiesHelper->insertDataFromApi($product, $this->getCode());
         }
         if ($index) {
@@ -1290,6 +1287,7 @@ class Product extends Import
         $modelTableName = $connection->getTableName('pimgento_product_model');
 
         $nextParent = $parent;
+        $model = $parent;
         while ($nextParent) {
             $model = $nextParent;
             /** @var Select $parentCodeSelect */
