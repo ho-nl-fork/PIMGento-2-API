@@ -1261,10 +1261,12 @@ class Product extends Import
             $products = $connection->query($tmpProductSelect, $tmpTable)->fetchAll();
             foreach ($products as $product) {
                 $model    = $this->getModelFromParent($product['parent'], $parentToModel);
-                $values[] = [
-                    'product_id' => $product['entity_id'],
-                    'model' => $model
-                ];
+                if ($model !== null) {
+                    $values[] = [
+                        'product_id' => $product['entity_id'],
+                        'model' => $model
+                    ];
+                }
             }
             $connection->insertOnDuplicate($modelProductLinkTable, $values);
             // No more entries left, we can exist the loop.
