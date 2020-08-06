@@ -2287,6 +2287,10 @@ class Product extends Import
         while (($row = $query->fetch())) {
             /** @var array $galleryFiles */
             $galleryFiles = [];
+
+            // Keep track of which media attributes have been assigned a value and with which priority.
+            // This allows some pim attributes to take priority over other attributes when both are assigned to the same magento media attribute.
+            $mediaImportPriorities = [];
             foreach ($imageAttribtues as $image) {
                 if (!isset($row[$image])) {
                     continue;
@@ -2367,9 +2371,17 @@ class Product extends Import
                 /** @var array $columns */
                 $columns = $this->configHelper->getMediaImportImagesColumns();
 
+                $index = 0;
                 foreach ($columns as $column) {
+                    $index++;
                     if ($column['column'] !== $image) {
                         continue;
+                    }
+                    if (isset($mediaImportPriorities[$column['attribute']])
+                        && $mediaImportPriorities[$column['attribute']] < $index) {
+                        // Lower index attributes have higher priority.
+                        // We can skip assigning this attribute as an attribute with higher priority has already been assigned.
+                        break;
                     }
                     /** @var array $data */
                     $data = [
@@ -2378,6 +2390,7 @@ class Product extends Import
                         $columnIdentifier => $row[$columnIdentifier],
                         'value'           => $file
                     ];
+                    $mediaImportPriorities[$column['attribute']] = $index;
                     $connection->insertOnDuplicate($productImageTable, $data, array_keys($data));
                 }
 
