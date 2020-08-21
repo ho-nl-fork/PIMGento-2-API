@@ -197,6 +197,26 @@ class Product extends Import
     private $imageResize;
 
     /**
+     * Maps column names to attribute codes for image attributes,
+     * This array is filled by the buildImageAttributeLookups() method.
+     * @var array
+     */
+    private $columnNameToAttributeLookup;
+
+    /**
+     * List of all the attribute codes of image attributes.
+     * This array is filled by the buildImageAttributeLookups() method.
+     * @var array
+     */
+    private $imageAttributes;
+
+    /**
+     * Keeps track of whether the buildImageAttributeLookups function has been run yet.
+     * @var bool
+     */
+    private $imageAttributeLookupBuilt = false;
+
+    /**
      * Product constructor.
      *
      * @param OutputHelper $outputHelper
@@ -1326,6 +1346,8 @@ class Product extends Import
         /** @var string[] $columns */
         $columns = array_keys($connection->describeTable($tmpTable));
 
+        $this->buildImageAttributeLookups();
+
         $objectManager = \Magento\Framework\App\ObjectManager::getInstance();
         $helper = $objectManager->get('\Magento\Directory\Helper\Data');
 
@@ -1360,6 +1382,11 @@ class Product extends Import
 
             if (!isset($attributeScopeMapping[$columnPrefix])) {
                 // If no scope is found, attribute does not exist
+                continue;
+            }
+
+            if (isset($this->columnNameToAttributeLookup[$column])) {
+                // Don't import image attributes. These are imported in importMedia().
                 continue;
             }
 
@@ -2220,28 +2247,9 @@ class Product extends Import
             $galleryLookup[$imageColumn] = 1;
         }
 
-        /** @var array $stores */
-        $stores = $this->storeHelper->getAllStores();
+        $this->buildImageAttributeLookups();
 
-        $columnNameToAttributeLookup = [];
-
-        $attributes = $this->akeneoClient->getAttributeApi()->all(100);
-        $imageAttribtues = [];
-        foreach ($attributes as $attribute) {
-            if ($attribute['type'] === 'pim_catalog_image') {
-                $imageAttribtues[] = $attribute['code'];
-                $columnNameToAttributeLookup[$attribute['code']] = $attribute['code'];
-                // For scopable image attributes at various possibly scopes.
-                if ($attribute['scopable']) {
-                    foreach ($stores as $code => $store) {
-                        $imageAttribtues[] = $attribute['code'] . '-' . $code;
-                        $columnNameToAttributeLookup[$attribute['code'] . '-' . $code] = $attribute['code'];
-                    }
-                }
-            }
-        }
-
-        if (empty($imageAttribtues)) {
+        if (empty($this->imageAttributes)) {
             $this->setStatus(false);
             $this->setMessage(__('PIM Images Attributes is empty'));
 
@@ -2258,7 +2266,7 @@ class Product extends Import
             $columnIdentifier => '_entity_id',
             'sku'             => 'identifier',
         ];
-        foreach ($imageAttribtues as $image) {
+        foreach ($this->imageAttributes as $image) {
             if (!$connection->tableColumnExists($tmpTable, $image)) {
                 $this->setMessage(__('Warning: %1 attribute does not exist', $image));
                 continue;
@@ -2287,7 +2295,7 @@ class Product extends Import
         while (($row = $query->fetch())) {
             /** @var array $galleryFiles */
             $galleryFiles = [];
-            foreach ($imageAttribtues as $image) {
+            foreach ($this->imageAttributes as $image) {
                 if (!isset($row[$image])) {
                     continue;
                 }
@@ -2331,7 +2339,7 @@ class Product extends Import
                 }
 
                 // Only set the image in the gallery if the attribute is set as a gallery image in the configuration.
-                if (isset($galleryLookup[$columnNameToAttributeLookup[$image]])) {
+                if (isset($galleryLookup[$this->columnNameToAttributeLookup[$image]])) {
                     /** @var array $data */
                     $data = [
                         'value_id'     => $valueId,
@@ -2344,7 +2352,7 @@ class Product extends Import
                 } else {
                     // Save the proper filename as the image attribute.
                     /** @var \Magento\Catalog\Model\ResourceModel\Eav\Attribute $galleryAttribute */
-                    $imageAttribute = $this->configHelper->getAttribute(ProductModel::ENTITY, $columnNameToAttributeLookup[$image]);
+                    $imageAttribute = $this->configHelper->getAttribute(ProductModel::ENTITY, $this->columnNameToAttributeLookup[$image]);
                     /** @var array $data */
                     $data = [
                         'attribute_id' => $imageAttribute->getId(),
@@ -2355,7 +2363,7 @@ class Product extends Import
                     $connection->insertOnDuplicate($productImageTable, $data, array_keys($data));
                 }
 
-                if (isset($galleryLookup[$columnNameToAttributeLookup[$image]])) {
+                if (isset($galleryLookup[$this->columnNameToAttributeLookup[$image]])) {
                     /** @var array $data */
                     $data = [
                         'value_id' => $valueId,
@@ -2381,7 +2389,7 @@ class Product extends Import
                     $connection->insertOnDuplicate($productImageTable, $data, array_keys($data));
                 }
 
-                if (isset($galleryLookup[$columnNameToAttributeLookup[$image]])) {
+                if (isset($galleryLookup[$this->columnNameToAttributeLookup[$image]])) {
                     $galleryFiles[] = $file;
                 }
                 $resizeFiles[$file] = 1;
@@ -2672,5 +2680,34 @@ class Product extends Import
         }
 
         return $relevantColumns;
+    }
+
+    private function buildImageAttributeLookups() {
+
+        if ($this->imageAttributeLookupBuilt) {
+            return;
+        }
+
+        /** @var array $stores */
+        $stores = $this->storeHelper->getAllStores();
+
+        $this->imageAttributeLookupBuilt = true;
+        $this->columnNameToAttributeLookup = [];
+
+        $attributes = $this->akeneoClient->getAttributeApi()->all(100);
+        $this->imageAttributes = [];
+        foreach ($attributes as $attribute) {
+            if ($attribute['type'] === 'pim_catalog_image') {
+                $this->imageAttributes[] = $attribute['code'];
+                $this->columnNameToAttributeLookup[$attribute['code']] = $attribute['code'];
+                // For scopable image attributes at various possibly scopes.
+                if ($attribute['scopable']) {
+                    foreach ($stores as $code => $store) {
+                        $this->imageAttributes[] = $attribute['code'] . '-' . $code;
+                        $this->columnNameToAttributeLookup[$attribute['code'] . '-' . $code] = $attribute['code'];
+                    }
+                }
+            }
+        }
     }
 }
