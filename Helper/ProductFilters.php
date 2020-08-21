@@ -165,7 +165,9 @@ class ProductFilters extends AbstractHelper
         }
         $filter = explode(',', $filter);
 
-        $this->searchBuilder->addFilter('family', 'NOT IN', $filter);
+        foreach ($filter as $filteredFamily) {
+            $this->searchBuilder->addFilter('family', 'NOT IN', [$filteredFamily]);
+        }
 
         return;
     }

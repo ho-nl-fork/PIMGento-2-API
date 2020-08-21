@@ -314,9 +314,6 @@ class Product extends Import
          * @var array $product
          */
         foreach ($products as $index => $product) {
-            if ($product['parent'] === null) {
-                continue;
-            }
             $this->entitiesHelper->insertDataFromApi($product, $this->getCode());
         }
         if ($index) {
@@ -1284,10 +1281,12 @@ class Product extends Import
             $products = $connection->query($tmpProductSelect, $tmpTable)->fetchAll();
             foreach ($products as $product) {
                 $model    = $this->getModelFromParent($product['parent'], $parentToModel);
-                $values[] = [
-                    'product_id' => $product['entity_id'],
-                    'model' => $model
-                ];
+                if ($model !== null) {
+                    $values[] = [
+                        'product_id' => $product['entity_id'],
+                        'model' => $model
+                    ];
+                }
             }
             $connection->insertOnDuplicate($modelProductLinkTable, $values);
             // No more entries left, we can exist the loop.
@@ -1310,6 +1309,7 @@ class Product extends Import
         $modelTableName = $connection->getTableName('pimgento_product_model');
 
         $nextParent = $parent;
+        $model = $parent;
         while ($nextParent) {
             $model = $nextParent;
             /** @var Select $parentCodeSelect */
@@ -2295,6 +2295,10 @@ class Product extends Import
         while (($row = $query->fetch())) {
             /** @var array $galleryFiles */
             $galleryFiles = [];
+
+            // Keep track of which media attributes have been assigned a value and with which priority.
+            // This allows some pim attributes to take priority over other attributes when both are assigned to the same magento media attribute.
+            $mediaImportPriorities = [];
             foreach ($this->imageAttributes as $image) {
                 if (!isset($row[$image])) {
                     continue;
@@ -2375,9 +2379,17 @@ class Product extends Import
                 /** @var array $columns */
                 $columns = $this->configHelper->getMediaImportImagesColumns();
 
+                $index = 0;
                 foreach ($columns as $column) {
+                    $index++;
                     if ($column['column'] !== $image) {
                         continue;
+                    }
+                    if (isset($mediaImportPriorities[$column['attribute']])
+                        && $mediaImportPriorities[$column['attribute']] < $index) {
+                        // Lower index attributes have higher priority.
+                        // We can skip assigning this attribute as an attribute with higher priority has already been assigned.
+                        break;
                     }
                     /** @var array $data */
                     $data = [
@@ -2386,6 +2398,7 @@ class Product extends Import
                         $columnIdentifier => $row[$columnIdentifier],
                         'value'           => $file
                     ];
+                    $mediaImportPriorities[$column['attribute']] = $index;
                     $connection->insertOnDuplicate($productImageTable, $data, array_keys($data));
                 }
 
