@@ -50,6 +50,7 @@ class Config extends AbstractHelper
     const PRODUCTS_FILTERS_COMPLETENESS_LOCALES = 'pimgento/products_filters/completeness_locales';
     const PRODUCTS_FILTERS_STATUS = 'pimgento/products_filters/status';
     const PRODUCTS_FILTERS_FAMILIES = 'pimgento/products_filters/families';
+    const PRODUCTS_FILTERS_CATEGORY = 'pimgento/products_filters/category';
     const PRODUCTS_FILTERS_UPDATED = 'pimgento/products_filters/updated';
     const PRODUCTS_FILTERS_ADVANCED_FILTER = 'pimgento/products_filters/advanced_filter';
     const PRODUCT_ATTRIBUTE_MAPPING_SIMPLE = 'pimgento/product/attribute_mapping_simple';
@@ -282,6 +283,16 @@ class Config extends AbstractHelper
     public function getUpdatedFilter()
     {
         return $this->scopeConfig->getValue(self::PRODUCTS_FILTERS_UPDATED);
+    }
+
+    /**
+     * Retrieve the category to filter the products on
+     *
+     * @return string
+     */
+    public function getCategoryFilter()
+    {
+        return $this->scopeConfig->getValue(self::PRODUCTS_FILTERS_CATEGORY);
     }
 
     /**

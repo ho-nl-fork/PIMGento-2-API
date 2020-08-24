@@ -135,6 +135,15 @@
                         <field id="mode">standard</field>
                     </depends>
                 </field>
+                <field id="category" translate="label" type="text" sortOrder="75" showInDefault="1" showInWebsite="0" showInStore="0">
+                <label>Category</label>
+                <comment>
+                    <![CDATA[Only import products from the specified category. Leave blank for no filter.]]>
+                </comment>
+                <depends>
+                    <field id="mode">standard</field>
+                </depends>
+            </field>
                 <field id="families" translate="label comment" type="multiselect" sortOrder="80" showInDefault="1"
                        showInWebsite="0" showInStore="0">
                     <label>Families</label>

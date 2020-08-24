@@ -68,6 +68,7 @@ class ProductFilters extends AbstractHelper
         $this->addCompletenessFilter();
         $this->addStatusFilter();
         $this->addFamiliesFilter();
+        $this->addCategoryFilter();
         $this->addUpdatedFilter();
         /** @var array $filters */
         $filters = $this->searchBuilder->getFilters();
@@ -170,5 +171,21 @@ class ProductFilters extends AbstractHelper
         }
 
         return;
+    }
+
+    /**
+     * Add families filter for Akeneo API
+     *
+     * @return void
+     */
+    protected function addCategoryFilter()
+    {
+        /** @var mixed $filter */
+        $filter = $this->configHelper->getCategoryFilter();
+        if (!$filter) {
+            return;
+        }
+
+        $this->searchBuilder->addFilter('categories', 'IN', [$filter]);
     }
 }
