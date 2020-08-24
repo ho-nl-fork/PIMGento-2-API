@@ -2293,6 +2293,7 @@ class Product extends Import
 
         /** @var array $row */
         while (($row = $query->fetch())) {
+            try {
             /** @var array $galleryFiles */
             $galleryFiles = [];
 
@@ -2303,16 +2304,13 @@ class Product extends Import
                 if (!isset($row[$image])) {
                     continue;
                 }
-
                 if (!$row[$image]) {
                     continue;
                 }
-
                 /** @var array $media */
                 $media = $this->akeneoClient->getProductMediaFileApi()->get($row[$image]);
                 /** @var string $name */
-                $name  = basename($media['code']);
-
+                $name = basename($media['code']);
                 /** @var string $file */
                 try {
                     if (!$this->configHelper->mediaFileExists($name)) {
@@ -2326,14 +2324,12 @@ class Product extends Import
                     );
                     continue;
                 }
-
                 /** @var int $valueId */
                 $valueId = $connection->fetchOne(
                     $connection->select()
                         ->from($galleryTable, ['value_id'])
                         ->where('value = ?', $file)
                 );
-
                 if (!$valueId) {
                     /** @var int $valueId */
                     $valueId = $connection->fetchOne(
@@ -2341,32 +2337,31 @@ class Product extends Import
                     );
                     $valueId += 1;
                 }
-
                 // Only set the image in the gallery if the attribute is set as a gallery image in the configuration.
                 if (isset($galleryLookup[$this->columnNameToAttributeLookup[$image]])) {
                     /** @var array $data */
                     $data = [
-                        'value_id'     => $valueId,
+                        'value_id' => $valueId,
                         'attribute_id' => $galleryAttribute->getId(),
-                        'value'        => $file,
-                        'media_type'   => ImageEntryConverter::MEDIA_TYPE_CODE,
-                        'disabled'     => 0,
+                        'value' => $file,
+                        'media_type' => ImageEntryConverter::MEDIA_TYPE_CODE,
+                        'disabled' => 0,
                     ];
                     $connection->insertOnDuplicate($galleryTable, $data, array_keys($data));
                 } else {
                     // Save the proper filename as the image attribute.
                     /** @var \Magento\Catalog\Model\ResourceModel\Eav\Attribute $galleryAttribute */
-                    $imageAttribute = $this->configHelper->getAttribute(ProductModel::ENTITY, $this->columnNameToAttributeLookup[$image]);
+                    $imageAttribute = $this->configHelper->getAttribute(ProductModel::ENTITY,
+                        $this->columnNameToAttributeLookup[$image]);
                     /** @var array $data */
                     $data = [
                         'attribute_id' => $imageAttribute->getId(),
-                        'value'        => $file,
-                        'store_id'     => 0,
+                        'value' => $file,
+                        'store_id' => 0,
                         $columnIdentifier => $row[$columnIdentifier],
                     ];
                     $connection->insertOnDuplicate($productImageTable, $data, array_keys($data));
                 }
-
                 if (isset($galleryLookup[$this->columnNameToAttributeLookup[$image]])) {
                     /** @var array $data */
                     $data = [
@@ -2375,10 +2370,8 @@ class Product extends Import
                     ];
                     $connection->insertOnDuplicate($galleryEntityTable, $data, array_keys($data));
                 }
-
                 /** @var array $columns */
                 $columns = $this->configHelper->getMediaImportImagesColumns();
-
                 $index = 0;
                 foreach ($columns as $column) {
                     $index++;
@@ -2392,16 +2385,15 @@ class Product extends Import
                         break;
                     }
                     /** @var array $data */
-                    $data = [
-                        'attribute_id'    => $column['attribute'],
-                        'store_id'        => 0,
+                    $data                                        = [
+                        'attribute_id' => $column['attribute'],
+                        'store_id' => 0,
                         $columnIdentifier => $row[$columnIdentifier],
-                        'value'           => $file
+                        'value' => $file
                     ];
                     $mediaImportPriorities[$column['attribute']] = $index;
                     $connection->insertOnDuplicate($productImageTable, $data, array_keys($data));
                 }
-
                 if (isset($galleryLookup[$this->columnNameToAttributeLookup[$image]])) {
                     $galleryFiles[] = $file;
                 }
@@ -2420,13 +2412,32 @@ class Product extends Import
                     $columnIdentifier . ' = ?' => $row[$columnIdentifier]
                 ]
             );
+
+            } catch (\Throwable $e) {
+                $this->logger->error(
+                    __('Failed to import images for product "%1". Error message: %2', $row[$columnIdentifier], $e->getMessage())
+                );
+                continue;
+            }
         }
 
+
+        $this->logger->info(
+            __('Image import done. Starting resizing of images. %1 images found to resize.', \sizeof($resizeFiles))
+        );
+
+        $imagesResized = 0;
         foreach ($resizeFiles as $file => $value) {
             try {
+                if ($imagesResized % (\sizeof($resizeFiles) / 10) === 0) {
+                    $this->logger->info(
+                        __('Resizing images. Progress: (%1 / %2).', $imagesResized, \sizeof($resizeFiles))
+                    );
+                }
                 $this->imageResize->resizeFromImageName($file);
             } catch (NotFoundException $e) {
             }
+            $imagesResized++;
         }
     }
 
