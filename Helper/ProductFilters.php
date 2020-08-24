@@ -185,7 +185,8 @@ class ProductFilters extends AbstractHelper
         if (!$filter) {
             return;
         }
+        $filter = explode(',', $filter);
 
-        $this->searchBuilder->addFilter('categories', 'IN', [$filter]);
+        $this->searchBuilder->addFilter('categories', 'IN', $filter);
     }
 }
