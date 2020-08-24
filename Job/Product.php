@@ -2291,9 +2291,20 @@ class Product extends Import
 
         $resizeFiles = [];
 
+        $totalProducts = $query->rowCount();
+        $productsProcessed = 0;
+
         /** @var array $row */
         while (($row = $query->fetch())) {
             try {
+
+                if ($productsProcessed % ($totalProducts / 10) === 0) {
+                    $this->logger->info(
+                        __('Importing image. Progress: (%1 / %2) products completed.', $productsProcessed, $totalProducts)
+                    );
+                }
+                $productsProcessed++;
+
             /** @var array $galleryFiles */
             $galleryFiles = [];
 
