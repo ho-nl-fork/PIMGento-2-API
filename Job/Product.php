@@ -217,6 +217,11 @@ class Product extends Import
     private $imageAttributeLookupBuilt = false;
 
     /**
+     * @var \Pimgento\Api\Logger\Logger
+     */
+    private $pimLogger;
+
+    /**
      * Product constructor.
      *
      * @param OutputHelper $outputHelper
@@ -251,6 +256,7 @@ class Product extends Import
         StoreHelper $storeHelper,
         Option $optionJob,
         ImageResize $imageResize,
+        \Pimgento\Api\Logger\Logger $pimLogger,
         array $data = []
     ) {
         parent::__construct($outputHelper, $eventManager, $authenticator, $logger, $data);
@@ -267,6 +273,7 @@ class Product extends Import
         $this->optionJob               = $optionJob;
         $this->configurableTmpTableSuffix = 'low_level_configurable';
         $this->imageResize = $imageResize;
+        $this->pimLogger = $pimLogger;
     }
 
     /**s
@@ -2298,8 +2305,8 @@ class Product extends Import
         while (($row = $query->fetch())) {
             try {
 
-                if ($productsProcessed % ($totalProducts / 10) === 0) {
-                    $this->logger->info(
+                if ($productsProcessed % \max(1, $totalProducts / 10) === 0) {
+                    $this->pimLogger->debug(
                         __('Importing image. Progress: (%1 / %2) products completed.', $productsProcessed, $totalProducts)
                     );
                 }
@@ -2330,7 +2337,7 @@ class Product extends Import
                     }
                     $file = $this->configHelper->getMediaFilePath($name);
                 } catch (\InvalidArgumentException $e) {
-                    $this->logger->error(
+                    $this->pimLogger->error(
                         __('Failed to import gallery image "%1" . Possibly the file name is too long', $name)
                     );
                     continue;
@@ -2425,7 +2432,7 @@ class Product extends Import
             );
 
             } catch (\Throwable $e) {
-                $this->logger->error(
+                $this->pimLogger->error(
                     __('Failed to import images for product "%1". Error message: %2', $row[$columnIdentifier], $e->getMessage())
                 );
                 continue;
@@ -2433,15 +2440,15 @@ class Product extends Import
         }
 
 
-        $this->logger->info(
+        $this->pimLogger->info(
             __('Image import done. Starting resizing of images. %1 images found to resize.', \sizeof($resizeFiles))
         );
 
         $imagesResized = 0;
         foreach ($resizeFiles as $file => $value) {
             try {
-                if ($imagesResized % (\sizeof($resizeFiles) / 10) === 0) {
-                    $this->logger->info(
+                if ($imagesResized % \max(1, \sizeof($resizeFiles) / 10) === 0) {
+                    $this->pimLogger->debug(
                         __('Resizing images. Progress: (%1 / %2).', $imagesResized, \sizeof($resizeFiles))
                     );
                 }
@@ -2450,6 +2457,9 @@ class Product extends Import
             }
             $imagesResized++;
         }
+        $this->pimLogger->debug(
+            __('Done resizing images.')
+        );
     }
 
     /**
