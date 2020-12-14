@@ -1734,6 +1734,7 @@ class Product extends Import
                 [
                     'category_id' => 'c.entity_id',
                     'product_id'  => 'p._entity_id',
+                    'position' => 1000000
                 ])
             ->joinInner(
                 ['e' => $this->entitiesHelper->getTable('catalog_category_entity')],
@@ -1745,7 +1746,7 @@ class Product extends Import
             $connection->insertFromSelect(
                 $select,
                 $this->entitiesHelper->getTable('catalog_category_product'),
-                ['category_id', 'product_id'],
+                ['category_id', 'product_id', 'position'],
                 1
             )
         );
