@@ -447,7 +447,7 @@ class Product extends Import
                         ];
                         // Add labels for each locale.
                         foreach ($localeSuffixes as $localeSuffix) {
-                            $data['labels-' . $localeSuffix] = $amount . ($unitSymbol === '' ? '' : ' ' . $unitSymbol);
+                            $data['labels-' . $localeSuffix] = $this->getForkedAttributeLabel($forkedCode, $option, $amount, $unitSymbol, $localeSuffix);
                         }
                         // Write data to the Options tmp table.
                         $connection->insertOnDuplicate(
@@ -463,6 +463,11 @@ class Product extends Import
                 $this->optionJob->runFromStep(3);
             }
         }
+    }
+
+    public function getForkedAttributeLabel($attributeCode, $optionValue, $amount, $unitSymbol, $localeSuffix)
+    {
+        return $amount . ($unitSymbol === '' ? '' : ' ' . $unitSymbol);
     }
 
     public function getSortOrderForForkedOption(string $option, string $forkedCode, string $amount, string $unitSymbol)
