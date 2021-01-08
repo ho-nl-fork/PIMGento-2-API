@@ -1739,7 +1739,7 @@ class Product extends Import
                 [
                     'category_id' => 'c.entity_id',
                     'product_id'  => 'p._entity_id',
-                    'position' => 1000000
+                    'position' => new Expr(1000000)
                 ])
             ->joinInner(
                 ['e' => $this->entitiesHelper->getTable('catalog_category_entity')],
