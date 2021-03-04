@@ -176,7 +176,7 @@ class Product extends Entities
                 /** @var string $name */
                 $name = $group . '-' . $key;
 
-                $associations[$name] = implode(',', $products);
+                $associations[$name] = $this->implodeRecursive($products);
             }
         }
 
@@ -185,6 +185,20 @@ class Product extends Entities
         }
 
         return $associations;
+    }
+
+    private function implodeRecursive($var) {
+        if (is_array($var)) {
+            $result = '';
+            foreach ($var as $item) {
+                $itemStr = $this->implodeRecursive($item);
+                if ($itemStr !== null && $itemStr !== '') {
+                    $result .= ($result === '' ? '' : ',') . $itemStr;
+                }
+            }
+            return $result;
+        }
+        return $var;
     }
 
     /**
